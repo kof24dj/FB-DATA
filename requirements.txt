@@ -2,6 +2,4 @@ fastapi
 uvicorn
 facebook-business
 python-dotenv
-pandas
-openpyxl
 gunicorn
