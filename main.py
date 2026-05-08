@@ -1,7 +1,9 @@
 import os
 import json
+import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from facebook_business.api import FacebookAdsApi
 from facebook_business.adobjects.adaccount import AdAccount
@@ -23,6 +25,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 🌟 新增：當任何人連上你的網址，直接把網頁檔案 (index.html) 給他看
+@app.get("/")
+def serve_webpage():
+    if os.path.exists("index.html"):
+        return FileResponse("index.html")
+    return {"error": "找不到 index.html 檔案，請確認檔案名稱與位置！"}
+
 @app.get("/api/ads")
 def get_ads_data(start_date: str = None, end_date: str = None, account_id: str = None):
     target_account_id = account_id if account_id else AD_ACCOUNT_ID
@@ -42,7 +51,7 @@ def get_ads_data(start_date: str = None, end_date: str = None, account_id: str =
     try:
         insights = account.get_insights(fields=fields, params=params)
         data_list = []
-        ad_info_cache = {}  # 升級快取系統
+        ad_info_cache = {}  
         
         if insights:
             for item in insights:
@@ -53,7 +62,7 @@ def get_ads_data(start_date: str = None, end_date: str = None, account_id: str =
                 ad_id = item.get('ad_id')
                 audience_type = item.get('adset_name', '未標示受眾')
                 
-                # --- 🌟 關鍵升級：深潛抓取隱藏的成效目標 ---
+                # 抓取素材圖與隱藏的 Optimization Goal
                 if ad_id in ad_info_cache:
                     image_url = ad_info_cache[ad_id]['image']
                     opt_goal = ad_info_cache[ad_id]['opt_goal']
@@ -63,13 +72,10 @@ def get_ads_data(start_date: str = None, end_date: str = None, account_id: str =
                     if ad_id:
                         try:
                             ad = Ad(ad_id)
-                            
-                            # 1. 深入「廣告組合」房間抓取 Optimization Goal
                             ad_details = ad.api_get(fields=['adset{optimization_goal}'])
                             if 'adset' in ad_details and 'optimization_goal' in ad_details['adset']:
                                 opt_goal = ad_details['adset']['optimization_goal']
 
-                            # 2. 抓取素材圖
                             creatives = ad.get_ad_creatives(fields=[
                                 'thumbnail_url', 'image_url', 'object_story_spec',
                                 'effective_object_story_spec', 'asset_feed_spec'
@@ -110,7 +116,6 @@ def get_ads_data(start_date: str = None, end_date: str = None, account_id: str =
                 conv_value = get_exact_action_value(item.get('action_values', []), ['purchase', 'omni_purchase'])
                 leads = int(get_exact_action_value(item.get('actions', []), ['lead', 'onsite_conversion.lead_grouped']))
                 
-                # 訊息與留言數加總
                 msg_starts = get_exact_action_value(item.get('actions', []), [
                     'onsite_conversion.messaging_conversation_started_7d', 
                     'messaging_conversation_started_7d',
@@ -119,12 +124,11 @@ def get_ads_data(start_date: str = None, end_date: str = None, account_id: str =
                 comments = get_exact_action_value(item.get('actions', []), ['comment'])
                 messages = int(msg_starts + comments)
 
-                # 把隱藏的目標參數丟給前端
                 data_list.append({
                     "adName": item.get('ad_name', '未命名廣告'),
                     "adsetName": audience_type,
                     "objective": item.get('objective', ''),
-                    "optimizationGoal": opt_goal,  # 🌟 成功抓到的成效目標
+                    "optimizationGoal": opt_goal,
                     "spend": spend,
                     "impressions": int(item.get('impressions', 0)),
                     "reach": int(item.get('reach', 0)),
@@ -139,11 +143,8 @@ def get_ads_data(start_date: str = None, end_date: str = None, account_id: str =
         return {"status": "success", "data": data_list}
     except Exception as e:
         return {"status": "error", "message": str(e)}
-import uvicorn
-import os
 
+# 🌟 新增：讓雲端平台自動分配 Port 來啟動伺服器
 if __name__ == "__main__":
-    # 雲端平台會自動分配 PORT，若無則預設 8000
     port = int(os.environ.get("PORT", 8000))
-    # 這裡啟動伺服器
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
