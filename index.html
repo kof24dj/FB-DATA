@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全能廣告成效儀表板 (嚴格分流版)</title>
+    <meta name="referrer" content="no-referrer">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; color: #333; background-color: #f4f7f6; }
+        .container { background-color: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        h2 { color: #2c3e50; text-align: center; }
+        
+        .upload-section { margin-bottom: 20px; padding: 20px; background-color: #f1f8ff; border-radius: 8px; border: 1px solid #c8e1ff; display: flex; justify-content: center; gap: 15px; align-items: center; flex-wrap: wrap;}
+        .upload-section input[type="date"], .upload-section select { padding: 8px; border: 1px solid #ccc; border-radius: 5px; font-size: 14px; }
+        .btn-fetch { background-color: #4CAF50; color: white; padding: 10px 25px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight: bold; }
+        .btn-fetch:hover { background-color: #45a049; }
+        
+        .tabs { display: flex; justify-content: center; margin-bottom: 15px; gap: 10px; }
+        .tab-btn { padding: 12px 24px; font-size: 16px; font-weight: bold; cursor: pointer; border: none; border-radius: 5px; background-color: #e0e0e0; color: #555; transition: 0.3s; }
+        .tab-btn.active { background-color: #0078D7; color: white; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .tab-btn:hover:not(.active) { background-color: #d5d5d5; }
+        
+        .loading { text-align: center; color: #0078D7; font-weight: bold; margin-bottom: 20px; display: none; }
+        .error-msg { color: #c62828; font-weight: bold; text-align: center; margin-bottom: 10px; }
+        
+        .controls-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 15px; gap: 15px; }
+        .controls-left { display: flex; gap: 10px; align-items: center; }
+        .search-input { padding: 10px 15px; font-size: 16px; border: 1px solid #ccc; border-radius: 5px; width: 300px; }
+        
+        .btn-action { background-color: #0078D7; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: bold; }
+        .btn-action:hover { background-color: #005A9E; }
+        .btn-toggle-all { background-color: #ff9800; }
+        .btn-toggle-all:hover { background-color: #e68a00; }
+        .btn-export { background-color: #107c41; }
+        .btn-export:hover { background-color: #0b5a2f; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: right; vertical-align: middle; }
+        th { background-color: #4CAF50; color: white; text-align: center; cursor: pointer; user-select: none; }
+        th:hover { background-color: #45a049; }
+        
+        td:nth-child(1), td:nth-child(2), td:nth-child(3) { text-align: left; }
+        tr.parent-row { background-color: #ffffff; font-weight: bold; }
+        tr.parent-row:hover { background-color: #f1f1f1; }
+        tr.child-row { background-color: #f0f8ff; color: #444; }
+        tr.child-row:hover { background-color: #e1f0fa; }
+        
+        .toggle-btn { background-color: #e3f2fd; color: #0078D7; padding: 6px 12px; border-radius: 5px; cursor: pointer; display: inline-block; font-size: 13px; border: 1px solid #bbdefb; transition: 0.2s; }
+        .toggle-btn:hover { background-color: #bbdefb; }
+        .child-indent { display: inline-block; width: 15px; color: #999; text-align: right; margin-right: 5px; }
+        
+        .empty-row { text-align: center !important; padding: 20px !important; color: #666; font-size: 16px; }
+        .ad-image { width: 60px; height: auto; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>📊 全能廣告成效儀表板 (自動過濾目標版)</h2>
+    
+    <div class="upload-section">
+        <label>廣告帳號:</label>
+        <select id="ad-account-select">
+            <option value="act_883974077624061">arte </option>
+            <option value="act_115126929310389">蛹之生 </option>
+            <option value="act_1429126901431628">安安優腦 </option>
+        </select>
+        <label>開始日期:</label>
+        <input type="date" id="start-date">
+        <label>結束日期:</label>
+        <input type="date" id="end-date">
+        <button class="btn-fetch" onclick="fetchApiData()">🚀 抓取最新數據</button>
+    </div>
+
+    <p class="loading" id="loading-text">⏳ 資料與素材圖片正在極速載入中，請稍候...</p>
+    <div id="errorContainer"></div>
+
+    <div id="actionContainer" style="display: none;">
+        <div class="tabs">
+            <button class="tab-btn" id="tab-purchase" onclick="switchTab('purchase')">🛒 轉換(購買)廣告</button>
+            <button class="tab-btn" id="tab-lead" onclick="switchTab('lead')">📝 表單(名單)廣告</button>
+            <button class="tab-btn" id="tab-message" onclick="switchTab('message')">💬 訊息型廣告</button>
+        </div>
+
+        <div class="controls-row">
+            <div class="controls-left">
+                <input type="text" id="searchInput" class="search-input" placeholder="🔍 搜尋廣告名稱..." oninput="renderTable()">
+                <button class="btn-action btn-toggle-all" id="btnToggleAll" onclick="toggleAll()">🔽 展開所有受眾</button>
+            </div>
+            <button class="btn-action btn-export" onclick="exportToExcel()">⬇️ 下載此版面 Excel</button>
+        </div>
+    </div>
+
+    <div id="tableContainer">
+        <div style="text-align: center; padding: 50px; color: #666; font-size: 18px; background: white; border-radius: 10px; margin-top: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+            👆 請先在上方選擇「廣告帳號」與「日期區間」<br><br>
+            選好後點擊綠色的 <b>「🚀 抓取最新數據」</b> 按鈕開始分析！<br>
+        </div>
+    </div>
+</div>
+
+<script>
+// 簡單的密碼檢查
+const password = prompt("請輸入觀看密碼：");
+if (password !== "你們團隊設定的密碼") {
+    alert("密碼錯誤，無法觀看數據！");
+    window.location.href = "https://www.google.com"; // 踢走他
+}
+
+    // 🌟 全域資料變數，依據三種廣告目標進行分離
+    let globalCategorizedData = { purchase: [], lead: [], message: [] };
+    
+    let currentData = [];
+    let currentSortCol = 'spend'; 
+    let isAscending = false;
+    let isAllExpanded = false;
+    let currentMode = 'purchase'; 
+
+    const today = new Date();
+    const lastWeek = new Date(today);
+    lastWeek.setDate(lastWeek.getDate() - 7);
+    document.getElementById('end-date').value = today.toISOString().split('T')[0];
+    document.getElementById('start-date').value = lastWeek.toISOString().split('T')[0];
+
+    window.onload = function() {
+        document.getElementById('tab-' + currentMode).classList.add('active');
+    };
+
+    function switchTab(mode) {
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.getElementById('tab-' + mode).classList.add('active');
+        currentMode = mode;
+        
+        // 切換頁籤時，讀取對應分類的資料陣列
+        currentData = globalCategorizedData[currentMode] || [];
+        currentSortCol = 'spend'; 
+        isAscending = false;
+        
+        if (currentData.length > 0) {
+            sortTable('spend'); 
+        } else {
+            renderTable();
+        }
+    }
+
+    function fetchApiData() {
+        const startDate = document.getElementById('start-date').value;
+        const endDate = document.getElementById('end-date').value;
+        const accountId = document.getElementById('ad-account-select').value;
+        
+        document.getElementById('tableContainer').innerHTML = '';
+        document.getElementById('actionContainer').style.display = 'none';
+        document.getElementById('errorContainer').innerHTML = '';
+        document.getElementById('loading-text').style.display = 'block';
+
+        const apiUrl = `http://127.0.0.1:8000/api/ads?start_date=${startDate}&end_date=${endDate}&account_id=${accountId}`;
+
+        fetch(apiUrl)
+            .then(res => res.json())
+            .then(result => {
+                document.getElementById('loading-text').style.display = 'none';
+                if (result.status === 'success') {
+                    if (result.data.length > 0) {
+                        processApiData(result.data);
+                    } else {
+                        document.getElementById('errorContainer').innerHTML = '<p class="error-msg">這個日期區間與帳號沒有廣告數據喔！</p>';
+                    }
+                } else {
+                    document.getElementById('errorContainer').innerHTML = `<p class="error-msg">系統錯誤：${result.message}</p>`;
+                }
+            })
+            .catch(err => {
+                document.getElementById('loading-text').style.display = 'none';
+                document.getElementById('errorContainer').innerHTML = `<p class="error-msg">連線失敗：${err}</p>`;
+            });
+    }
+
+
+// 🌟 核心分流器：精準捕捉「開始對話」與訊息目標
+    function determineTab(row) {
+        let obj = (row.objective || '').toUpperCase();
+        let opt = (row.optimizationGoal || '').toUpperCase();
+
+        // 我幫你加了這行「工程師透視眼」，按 F12 可以在 Console 看到 API 到底回傳了什麼英文！
+        console.log(`[目標偵測] 廣告: ${row.adName} | Objective: ${obj} | OptGoal: ${opt}`);
+
+        // 1. 訊息型 (Message)：目標為「開始對話 (CONVERSATIONS)」或「回覆 (REPLY)」
+        if (opt.includes('CONVERSATION') || opt.includes('MESSAGE') || opt.includes('REPLY') || obj.includes('MESSAGE')) {
+            return 'message';
+        }
+        // 2. 表單型 (Lead)：目標包含名單
+        if (obj.includes('LEAD') || opt.includes('LEAD')) {
+            return 'lead';
+        }
+        // 3. 預設轉換型 (Purchase)：銷售或網站轉換
+        return 'purchase';
+    }
+
+    function processApiData(data) {
+        // 先建立三個獨立的容器
+        let parentSummaries = { purchase: {}, lead: {}, message: {} };
+
+        data.forEach(row => {
+            let adName = String(row.adName).replace(/複製|複本| |-|─/g, '');
+            if (!adName) return;
+
+            // 🌟 判斷並分發到正確的容器 (徹底隔絕不同目標的廣告)
+            let cat = determineTab(row);
+            
+            let audienceType = row.adsetName || '未標示受眾';
+            let img = row.image || 'https://via.placeholder.com/60?text=無圖';
+
+            if (!parentSummaries[cat][adName]) {
+                parentSummaries[cat][adName] = { 
+                    adName: adName, isExpanded: false, image: img, childrenMap: {},
+                    spend: 0, reach: 0, impressions: 0, allClicks: 0, 
+                    purchases: 0, convValue: 0, carts: 0,
+                    leads: 0, messages: 0
+                };
+            }
+            let p = parentSummaries[cat][adName];
+            if (p.image.includes('placeholder') && !img.includes('placeholder')) p.image = img;
+
+            if (!p.childrenMap[audienceType]) {
+                p.childrenMap[audienceType] = {
+                    adName: adName, audience: audienceType, image: img,
+                    spend: 0, reach: 0, impressions: 0, allClicks: 0, 
+                    purchases: 0, convValue: 0, carts: 0,
+                    leads: 0, messages: 0
+                };
+            }
+            let c = p.childrenMap[audienceType];
+
+            p.spend += row.spend; p.impressions += row.impressions; p.reach += row.reach; p.allClicks += row.allClicks;
+            p.purchases += row.purchases; p.convValue += row.convValue; p.carts += row.carts;
+            p.leads += row.leads; p.messages += row.messages;
+            
+            c.spend += row.spend; c.impressions += row.impressions; c.reach += row.reach; c.allClicks += row.allClicks;
+            c.purchases += row.purchases; c.convValue += row.convValue; c.carts += row.carts;
+            c.leads += row.leads; c.messages += row.messages;
+        });
+
+        // 把三個容器分別轉成陣列並計算衍生指標
+        ['purchase', 'lead', 'message'].forEach(cat => {
+            globalCategorizedData[cat] = Object.values(parentSummaries[cat]).map(p => {
+                calcMetrics(p); 
+                p.children = Object.values(p.childrenMap); 
+                p.children.forEach(c => calcMetrics(c)); 
+                p.children.sort((a, b) => b.spend - a.spend);
+                return p;
+            });
+        });
+
+        // 啟動目前所在頁籤的資料
+        currentData = globalCategorizedData[currentMode];
+        currentSortCol = 'spend';
+        isAscending = false;
+        
+        document.getElementById('actionContainer').style.display = 'block';
+        if (currentData.length > 0) {
+            sortTable('spend');
+        } else {
+            renderTable();
+        }
+    }
+
+    function calcMetrics(d) {
+        d.cpc = d.allClicks > 0 ? (d.spend / d.allClicks) : 0;
+        d.ctr = d.impressions > 0 ? (d.allClicks / d.impressions) : 0;
+        d.freq = d.reach > 0 ? (d.impressions / d.reach) : 0;
+
+        d.cpaPur = d.purchases > 0 ? (d.spend / d.purchases) : 0;
+        d.roas = d.spend > 0 ? (d.convValue / d.spend) : 0;
+        d.costPerCart = d.carts > 0 ? (d.spend / d.carts) : 0;
+
+        d.cpl = d.leads > 0 ? (d.spend / d.leads) : 0;
+        d.cpaMsg = d.messages > 0 ? (d.spend / d.messages) : 0;
+    }
+
+    function toggleAll() {
+        isAllExpanded = !isAllExpanded;
+        document.getElementById('btnToggleAll').innerText = isAllExpanded ? "🔼 收合所有受眾" : "🔽 展開所有受眾";
+        currentData.forEach(d => d.isExpanded = isAllExpanded);
+        renderTable();
+    }
+
+    function toggleRow(adName) {
+        let row = currentData.find(d => d.adName === adName);
+        if (row) {
+            row.isExpanded = !row.isExpanded;
+            renderTable();
+        }
+    }
+
+    function sortTable(columnKey) {
+        if (currentSortCol === columnKey) isAscending = !isAscending;
+        else { currentSortCol = columnKey; isAscending = false; }
+
+        currentData.sort((a, b) => {
+            let valA = a[columnKey]; let valB = b[columnKey];
+            if (typeof valA === 'string') return isAscending ? valA.localeCompare(valB) : valB.localeCompare(valA);
+            else return isAscending ? valA - valB : valB - valA;
+        });
+        renderTable();
+    }
+
+    function getHeaderHtml(key, label) {
+        let arrow = currentSortCol === key ? (isAscending ? ' ▴' : ' ▾') : '';
+        return `<th onclick="sortTable('${key}')">${label}${arrow}</th>`;
+    }
+
+    function createRowHtml(d, isChild) {
+        let rowClass = isChild ? "child-row" : "parent-row";
+        let nameHtml = isChild ? `<span style="color:#aaa; font-size: 12px;">↳ 同上</span>` : `<b>${d.adName}</b>`;
+        let audienceHtml = isChild ? `<span class="child-indent">↳</span> ${d.audience}` : `<span class="toggle-btn" onclick="toggleRow('${d.adName}')">${d.isExpanded ? "▼" : "▶"} ${d.children ? d.children.length : 0} 個受眾</span>`;
+        let imgHtml = !isChild ? `<img src="${d.image}" class="ad-image" onerror="this.src='https://via.placeholder.com/60?text=無圖'">` : ``;
+
+        let html = `<tr class="${rowClass}"><td>${imgHtml}</td><td>${nameHtml}</td><td>${audienceHtml}</td><td>$${Math.round(d.spend).toLocaleString()}</td>`;
+
+        if (currentMode === 'message') {
+            html += `
+                <td>${d.messages}</td>
+                <td style="color:${d.cpaMsg > 500 ? 'red' : 'inherit'}">$${Math.round(d.cpaMsg).toLocaleString()}</td>
+                <td>${d.reach.toLocaleString()}</td>
+                <td>${d.impressions.toLocaleString()}</td>
+                <td>${d.allClicks.toLocaleString()}</td>
+                <td>$${d.cpc.toFixed(2)}</td>
+                <td>${(d.ctr * 100).toFixed(2)}%</td>
+                <td>${d.freq.toFixed(2)}</td>
+            `;
+        } 
+        else if (currentMode === 'lead') {
+            html += `
+                <td>${d.leads}</td>
+                <td style="color:${d.cpl > 1000 ? 'red' : 'inherit'}">$${Math.round(d.cpl).toLocaleString()}</td>
+                <td>${d.reach.toLocaleString()}</td>
+                <td>${d.impressions.toLocaleString()}</td>
+                <td>${d.allClicks.toLocaleString()}</td>
+                <td>$${d.cpc.toFixed(2)}</td>
+                <td>${(d.ctr * 100).toFixed(2)}%</td>
+                <td>${d.freq.toFixed(2)}</td>
+            `;
+        } 
+        else if (currentMode === 'purchase') {
+            html += `
+                <td>${d.purchases}</td>
+                <td style="color:${d.cpaPur > 1000 ? 'red' : 'inherit'}">$${Math.round(d.cpaPur).toLocaleString()}</td>
+                <td>$${Math.round(d.convValue).toLocaleString()}</td>
+                <td style="font-weight:bold; color:${d.roas > 2 ? 'green' : 'inherit'}">${d.roas.toFixed(2)}</td>
+                <td>${d.reach.toLocaleString()}</td>
+                <td>${d.impressions.toLocaleString()}</td>
+                <td>${d.allClicks.toLocaleString()}</td>
+                <td>$${d.cpc.toFixed(2)}</td>
+                <td>${(d.ctr * 100).toFixed(2)}%</td>
+                <td>${d.carts}</td>
+                <td>$${Math.round(d.costPerCart).toLocaleString()}</td>
+                <td>${d.freq.toFixed(2)}</td>
+            `;
+        }
+        
+        html += `</tr>`;
+        return html;
+    }
+
+    function renderTable() {
+        const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+        const filteredData = currentData.filter(d => 
+            d.adName.toLowerCase().includes(searchTerm) || 
+            d.children.some(c => c.audience.toLowerCase().includes(searchTerm))
+        );
+
+        let html = `<table><thead><tr>`;
+        
+        html += `
+            <th>素材圖</th>
+            ${getHeaderHtml('adName', '廣告名稱')}
+            ${getHeaderHtml('audience', '廣告組合 (受眾)')}
+            ${getHeaderHtml('spend', '總花費')}
+        `;
+
+        if (currentMode === 'message') {
+            html += `
+                ${getHeaderHtml('messages', '訊息數')}
+                ${getHeaderHtml('cpaMsg', 'CPA')}
+                ${getHeaderHtml('reach', '觸及人數')}
+                ${getHeaderHtml('impressions', '曝光次數')}
+                ${getHeaderHtml('allClicks', '點擊次數')}
+                ${getHeaderHtml('cpc', 'CPC')}
+                ${getHeaderHtml('ctr', 'CTR')}
+                ${getHeaderHtml('freq', '頻率')}
+            `;
+        } 
+        else if (currentMode === 'lead') {
+            html += `
+                ${getHeaderHtml('leads', '名單數')}
+                ${getHeaderHtml('cpl', 'CPL')}
+                ${getHeaderHtml('reach', '觸及人數')}
+                ${getHeaderHtml('impressions', '曝光次數')}
+                ${getHeaderHtml('allClicks', '點擊次數')}
+                ${getHeaderHtml('cpc', 'CPC')}
+                ${getHeaderHtml('ctr', 'CTR')}
+                ${getHeaderHtml('freq', '頻率')}
+            `;
+        } 
+        else if (currentMode === 'purchase') {
+            html += `
+                ${getHeaderHtml('purchases', '購買次數')}
+                ${getHeaderHtml('cpaPur', 'CPA')}
+                ${getHeaderHtml('convValue', '轉化價值')}
+                ${getHeaderHtml('roas', 'ROAS')}
+                ${getHeaderHtml('reach', '觸及人數')}
+                ${getHeaderHtml('impressions', '曝光次數')}
+                ${getHeaderHtml('allClicks', '點擊次數')}
+                ${getHeaderHtml('cpc', 'CPC')}
+                ${getHeaderHtml('ctr', 'CTR')}
+                ${getHeaderHtml('carts', '加到購物車次數')}
+                ${getHeaderHtml('costPerCart', '購物車成本')}
+                ${getHeaderHtml('freq', '頻率')}
+            `;
+        }
+
+        html += `</tr></thead><tbody>`;
+
+        if (filteredData.length === 0) {
+            html += `<tr><td colspan="15" class="empty-row">（此頁籤目前沒有資料）這個目標類型找不到相關廣告喔！</td></tr>`;
+        } else {
+            filteredData.forEach(parent => {
+                html += createRowHtml(parent, false);
+                if (parent.isExpanded) {
+                    parent.children.forEach(child => { html += createRowHtml(child, true); });
+                }
+            });
+        }
+
+        html += `</tbody></table>`;
+        document.getElementById('tableContainer').innerHTML = html;
+    }
+
+    function exportToExcel() {
+        const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+        const filteredData = currentData.filter(d => 
+            d.adName.toLowerCase().includes(searchTerm) || 
+            d.children.some(c => c.audience.toLowerCase().includes(searchTerm))
+        );
+
+        if (filteredData.length === 0) {
+            alert("目前沒有資料可以匯出喔！");
+            return;
+        }
+
+        const ws_data = [];
+        let headers = ["廣告名稱", "廣告組合", "總花費"];
+        
+        if (currentMode === 'message') {
+            headers = headers.concat(["訊息數", "CPA", "觸及人數", "曝光次數", "點擊次數", "CPC", "CTR", "頻率"]);
+        } else if (currentMode === 'lead') {
+            headers = headers.concat(["名單數", "CPL", "觸及人數", "曝光次數", "點擊次數", "CPC", "CTR", "頻率"]);
+        } else if (currentMode === 'purchase') {
+            headers = headers.concat(["購買次數", "CPA", "轉化價值", "ROAS", "觸及人數", "曝光次數", "點擊次數", "CPC", "CTR", "加到購物車次數", "購物車成本", "頻率"]);
+        }
+        
+        ws_data.push(headers);
+
+        function addRowToExcel(d, isChild) {
+            let audName = isChild ? d.audience : "總計";
+            let rowData = [isChild ? "  " + d.adName : d.adName, audName, Math.round(d.spend)];
+            
+            if (currentMode === 'message') {
+                rowData = rowData.concat([d.messages, Math.round(d.cpaMsg), d.reach, d.impressions, d.allClicks, d.cpc, d.ctr, d.freq]);
+            } else if (currentMode === 'lead') {
+                rowData = rowData.concat([d.leads, Math.round(d.cpl), d.reach, d.impressions, d.allClicks, d.cpc, d.ctr, d.freq]);
+            } else if (currentMode === 'purchase') {
+                rowData = rowData.concat([d.purchases, Math.round(d.cpaPur), Math.round(d.convValue), d.roas, d.reach, d.impressions, d.allClicks, d.cpc, d.ctr, d.carts, Math.round(d.costPerCart), d.freq]);
+            }
+            ws_data.push(rowData);
+        }
+
+        filteredData.forEach(parent => {
+            addRowToExcel(parent, false);
+            if (parent.isExpanded) {
+                parent.children.forEach(child => { addRowToExcel(child, true); });
+            }
+        });
+
+        const ws = XLSX.utils.aoa_to_sheet(ws_data);
+        const range = XLSX.utils.decode_range(ws['!ref']);
+        for(let R = range.s.r + 1; R <= range.e.r; ++R) {
+            for(let C = range.s.c; C <= range.e.c; ++C) {
+                const cellRef = XLSX.utils.encode_cell({c:C, r:R});
+                if(!ws[cellRef]) continue;
+                
+                if (currentMode === 'message' || currentMode === 'lead') {
+                    if (C === 9) ws[cellRef].z = '0.00%';  
+                    else if (C === 8 || C === 10) ws[cellRef].z = '0.00'; 
+                } else if (currentMode === 'purchase') {
+                    if (C === 11) ws[cellRef].z = '0.00%'; 
+                    else if (C === 6 || C === 10 || C === 14) ws[cellRef].z = '0.00'; 
+                }
+            }
+        }
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "廣告成效報表");
+        
+        let fileName = "Meta_轉換廣告報表.xlsx";
+        if (currentMode === 'message') fileName = "Meta_訊息廣告報表.xlsx";
+        else if (currentMode === 'lead') fileName = "Meta_表單廣告報表.xlsx";
+        
+        XLSX.writeFile(wb, fileName);
+    }
+</script>
+
+</body>
+</html>
