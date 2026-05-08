@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>全能廣告成效儀表板 (嚴格分流版)</title>
+    <title>全能廣告成效儀表板 (雲端防護版)</title>
     <meta name="referrer" content="no-referrer">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
@@ -57,7 +57,7 @@
 <body>
 
 <div class="container">
-    <h2>📊 全能廣告成效儀表板 (自動過濾目標版)</h2>
+    <h2>📊 全能廣告成效儀表板</h2>
     
     <div class="upload-section">
         <label>廣告帳號:</label>
@@ -101,16 +101,15 @@
 </div>
 
 <script>
-// 簡單的密碼檢查
-const password = prompt("請輸入觀看密碼：");
-if (password !== "你們團隊設定的密碼") {
-    alert("密碼錯誤，無法觀看數據！");
-    window.location.href = "https://www.google.com"; // 踢走他
-}
+    // 🌟 簡易密碼防護：只有輸入正確密碼才能進來 (可自訂)
+    const SECRET_PASSWORD = "12345"; // <--- 🌟 在這裡修改你們團隊的密碼
+    let userInput = prompt("🔒 此為公司內部商業數據，請輸入觀看密碼：");
+    if (userInput !== SECRET_PASSWORD) {
+        alert("密碼錯誤！您沒有權限觀看此頁面。");
+        window.location.href = "https://www.google.com"; // 踢出頁面
+    }
 
-    // 🌟 全域資料變數，依據三種廣告目標進行分離
     let globalCategorizedData = { purchase: [], lead: [], message: [] };
-    
     let currentData = [];
     let currentSortCol = 'spend'; 
     let isAscending = false;
@@ -124,7 +123,9 @@ if (password !== "你們團隊設定的密碼") {
     document.getElementById('start-date').value = lastWeek.toISOString().split('T')[0];
 
     window.onload = function() {
-        document.getElementById('tab-' + currentMode).classList.add('active');
+        if(userInput === SECRET_PASSWORD) {
+            document.getElementById('tab-' + currentMode).classList.add('active');
+        }
     };
 
     function switchTab(mode) {
@@ -132,7 +133,6 @@ if (password !== "你們團隊設定的密碼") {
         document.getElementById('tab-' + mode).classList.add('active');
         currentMode = mode;
         
-        // 切換頁籤時，讀取對應分類的資料陣列
         currentData = globalCategorizedData[currentMode] || [];
         currentSortCol = 'spend'; 
         isAscending = false;
@@ -154,7 +154,8 @@ if (password !== "你們團隊設定的密碼") {
         document.getElementById('errorContainer').innerHTML = '';
         document.getElementById('loading-text').style.display = 'block';
 
-        const apiUrl = `http://127.0.0.1:8000/api/ads?start_date=${startDate}&end_date=${endDate}&account_id=${accountId}`;
+        // 🌟 關鍵修改：改成「相對路徑」，讓它自動對應雲端伺服器網址
+        const apiUrl = `/api/ads?start_date=${startDate}&end_date=${endDate}&account_id=${accountId}`;
 
         fetch(apiUrl)
             .then(res => res.json())
@@ -176,38 +177,27 @@ if (password !== "你們團隊設定的密碼") {
             });
     }
 
-
-// 🌟 核心分流器：精準捕捉「開始對話」與訊息目標
     function determineTab(row) {
         let obj = (row.objective || '').toUpperCase();
         let opt = (row.optimizationGoal || '').toUpperCase();
 
-        // 我幫你加了這行「工程師透視眼」，按 F12 可以在 Console 看到 API 到底回傳了什麼英文！
-        console.log(`[目標偵測] 廣告: ${row.adName} | Objective: ${obj} | OptGoal: ${opt}`);
-
-        // 1. 訊息型 (Message)：目標為「開始對話 (CONVERSATIONS)」或「回覆 (REPLY)」
         if (opt.includes('CONVERSATION') || opt.includes('MESSAGE') || opt.includes('REPLY') || obj.includes('MESSAGE')) {
             return 'message';
         }
-        // 2. 表單型 (Lead)：目標包含名單
         if (obj.includes('LEAD') || opt.includes('LEAD')) {
             return 'lead';
         }
-        // 3. 預設轉換型 (Purchase)：銷售或網站轉換
         return 'purchase';
     }
 
     function processApiData(data) {
-        // 先建立三個獨立的容器
         let parentSummaries = { purchase: {}, lead: {}, message: {} };
 
         data.forEach(row => {
             let adName = String(row.adName).replace(/複製|複本| |-|─/g, '');
             if (!adName) return;
 
-            // 🌟 判斷並分發到正確的容器 (徹底隔絕不同目標的廣告)
             let cat = determineTab(row);
-            
             let audienceType = row.adsetName || '未標示受眾';
             let img = row.image || 'https://via.placeholder.com/60?text=無圖';
 
@@ -241,7 +231,6 @@ if (password !== "你們團隊設定的密碼") {
             c.leads += row.leads; c.messages += row.messages;
         });
 
-        // 把三個容器分別轉成陣列並計算衍生指標
         ['purchase', 'lead', 'message'].forEach(cat => {
             globalCategorizedData[cat] = Object.values(parentSummaries[cat]).map(p => {
                 calcMetrics(p); 
@@ -252,7 +241,6 @@ if (password !== "你們團隊設定的密碼") {
             });
         });
 
-        // 啟動目前所在頁籤的資料
         currentData = globalCategorizedData[currentMode];
         currentSortCol = 'spend';
         isAscending = false;
