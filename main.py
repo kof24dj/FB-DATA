@@ -114,7 +114,7 @@ def get_ads_data(start_date: str = None, end_date: str = None, account_id: str =
                 purchases = int(get_exact_action_value(item.get('actions', []), ['purchase', 'omni_purchase']))
                 carts = int(get_exact_action_value(item.get('actions', []), ['add_to_cart', 'omni_add_to_cart']))
                 conv_value = get_exact_action_value(item.get('action_values', []), ['purchase', 'omni_purchase'])
-                int(get_exact_action_value(item.get('actions', []), ['leadgen']))
+                leads = int(get_exact_action_value(item.get('actions', []), ['leadgen']))
                 
                 msg_starts = get_exact_action_value(item.get('actions', []), [
                     'onsite_conversion.messaging_conversation_started_7d', 
