@@ -52,6 +52,7 @@
         
         .empty-row { text-align: center !important; padding: 20px !important; color: #666; font-size: 16px; }
         .ad-image { width: 60px; height: auto; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+        .region-placeholder { width: 60px; height: 60px; background-color: #eceff1; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #546e7a; font-weight: bold; border: 1px solid #cfd8dc; }
     </style>
 </head>
 <body>
@@ -89,8 +90,8 @@
 
         <div class="controls-row">
             <div class="controls-left">
-                <input type="text" id="searchInput" class="search-input" placeholder="🔍 搜尋廣告名稱..." oninput="renderTable()">
-                <button class="btn-action btn-toggle-all" id="btnToggleAll" onclick="toggleAll()">🔽 展開所有受眾</button>
+                <input type="text" id="searchInput" class="search-input" placeholder="🔍 搜尋..." oninput="renderTable()">
+                <button class="btn-action btn-toggle-all" id="btnToggleAll" onclick="toggleAll()">🔽 全部展開</button>
             </div>
             <button class="btn-action btn-export" onclick="exportToExcel()">⬇️ 下載此版面 Excel</button>
         </div>
@@ -214,11 +215,12 @@
                     };
                 }
                 let p = parentSummaries[category][parentName];
+                // 如果父層還沒有真實圖片，且新的圖片是真實的，就更新它
                 if (p.image.includes('placeholder') && !img.includes('placeholder')) p.image = img;
 
                 if (!p.childrenMap[childName]) {
                     p.childrenMap[childName] = {
-                        adName: parentName, audience: childName, image: img,
+                        adName: parentName, audience: childName, image: img, // 子層保留自己的圖片
                         spend: 0, reach: 0, impressions: 0, allClicks: 0, 
                         purchases: 0, convValue: 0, carts: 0,
                         leads: 0, messages: 0
@@ -235,11 +237,11 @@
                 c.leads += row.leads; c.messages += row.messages;
             }
 
-            // 1. 將資料依照「廣告目標」分類 (子層級為：受眾)
+            // 1. 將資料依照「廣告目標」分類 (父層: 廣告名稱, 子層: 廣告受眾)
             addDataToCategory(cat, adName, audienceType);
 
-            // 2. 將所有資料依照「區域」統整至區域分頁 (子層級為：縣市)
-            addDataToCategory('region', adName, regionName);
+            // 🌟 2. 將資料依照「區域」分類 (父層: 縣市區域, 子層: 廣告名稱)
+            addDataToCategory('region', regionName, adName);
         });
 
         ['purchase', 'lead', 'message', 'region'].forEach(cat => {
@@ -279,9 +281,7 @@
 
     function toggleAll() {
         isAllExpanded = !isAllExpanded;
-        let btnText = isAllExpanded ? "🔼 收合所有受眾" : "🔽 展開所有受眾";
-        if(currentMode === 'region') btnText = isAllExpanded ? "🔼 收合所有縣市" : "🔽 展開所有縣市";
-        document.getElementById('btnToggleAll').innerText = btnText;
+        document.getElementById('btnToggleAll').innerText = isAllExpanded ? "🔼 全部收合" : "🔽 全部展開";
         
         currentData.forEach(d => d.isExpanded = isAllExpanded);
         renderTable();
@@ -314,10 +314,23 @@
 
     function createRowHtml(d, isChild) {
         let rowClass = isChild ? "child-row" : "parent-row";
+        
         let nameHtml = isChild ? `<span style="color:#aaa; font-size: 12px;">↳ 同上</span>` : `<b>${d.adName}</b>`;
-        let labelName = currentMode === 'region' ? '個縣市' : '個受眾';
+        
+        let labelName = currentMode === 'region' ? '個廣告' : '個受眾';
         let audienceHtml = isChild ? `<span class="child-indent">↳</span> ${d.audience}` : `<span class="toggle-btn" onclick="toggleRow('${d.adName}')">${d.isExpanded ? "▼" : "▶"} ${d.children ? d.children.length : 0} ${labelName}</span>`;
-        let imgHtml = !isChild ? `<img src="${d.image}" class="ad-image" onerror="this.src='https://via.placeholder.com/60?text=無圖'">` : ``;
+        
+        // 🌟 圖片顯示邏輯調整：區域頁籤展開後，子層顯示廣告圖片，父層顯示區域圖標
+        let imgHtml = '';
+        if (currentMode === 'region') {
+            imgHtml = isChild 
+                ? `<img src="${d.image}" class="ad-image" onerror="this.src='https://via.placeholder.com/60?text=無圖'">` 
+                : `<div class="region-placeholder">📍區域</div>`;
+        } else {
+            imgHtml = !isChild 
+                ? `<img src="${d.image}" class="ad-image" onerror="this.src='https://via.placeholder.com/60?text=無圖'">` 
+                : ``;
+        }
 
         let html = `<tr class="${rowClass}"><td>${imgHtml}</td><td>${nameHtml}</td><td>${audienceHtml}</td><td>$${Math.round(d.spend).toLocaleString()}</td>`;
 
@@ -375,11 +388,14 @@
 
         let html = `<table><thead><tr>`;
         
-        let audienceLabel = currentMode === 'region' ? '區域 (縣市)' : '廣告組合 (受眾)';
+        // 🌟 表頭動態文字判斷：若為區域頁籤，第一欄改為縣市，第二欄改為廣告內容
+        let col1Label = currentMode === 'region' ? '區域 (縣市)' : '廣告名稱';
+        let col2Label = currentMode === 'region' ? '廣告內容' : '廣告組合 (受眾)';
+        
         html += `
-            <th>素材圖</th>
-            ${getHeaderHtml('adName', '廣告名稱')}
-            ${getHeaderHtml('audience', audienceLabel)}
+            <th>圖示/素材圖</th>
+            ${getHeaderHtml('adName', col1Label)}
+            ${getHeaderHtml('audience', col2Label)}
             ${getHeaderHtml('spend', '總花費')}
         `;
 
@@ -427,7 +443,7 @@
         html += `</tr></thead><tbody>`;
 
         if (filteredData.length === 0) {
-            html += `<tr><td colspan="15" class="empty-row">（此頁籤目前沒有資料）這個目標類型找不到相關廣告喔！</td></tr>`;
+            html += `<tr><td colspan="15" class="empty-row">（此頁籤目前沒有資料）找不到相關數據喔！</td></tr>`;
         } else {
             filteredData.forEach(parent => {
                 html += createRowHtml(parent, false);
@@ -440,9 +456,7 @@
         html += `</tbody></table>`;
         document.getElementById('tableContainer').innerHTML = html;
         
-        let btnText = isAllExpanded ? "🔼 收合所有受眾" : "🔽 展開所有受眾";
-        if(currentMode === 'region') btnText = isAllExpanded ? "🔼 收合所有縣市" : "🔽 展開所有縣市";
-        document.getElementById('btnToggleAll').innerText = btnText;
+        document.getElementById('btnToggleAll').innerText = isAllExpanded ? "🔼 全部收合" : "🔽 全部展開";
     }
 
     function exportToExcel() {
@@ -458,7 +472,11 @@
         }
 
         const ws_data = [];
-        let headers = ["廣告名稱", currentMode === 'region' ? "區域" : "廣告組合", "總花費"];
+        let headers = [
+            currentMode === 'region' ? "區域 (縣市)" : "廣告名稱", 
+            currentMode === 'region' ? "廣告內容" : "廣告組合", 
+            "總花費"
+        ];
         
         if (currentMode === 'message' || currentMode === 'region') {
             headers = headers.concat(["訊息數", "CPA", "觸及人數", "曝光次數", "點擊次數", "CPC", "CTR", "頻率"]);
