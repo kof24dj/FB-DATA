@@ -43,10 +43,11 @@ def get_ads_data(start_date: str = None, end_date: str = None, account_id: str =
         'actions', 'action_values'
     ]
     
+    # 🌟 新增 breakdowns=['region'] 來獲取縣市區域資料
     if start_date and end_date:
-        params = {'time_range': json.dumps({'since': start_date, 'until': end_date}), 'level': 'ad'}
+        params = {'time_range': json.dumps({'since': start_date, 'until': end_date}), 'level': 'ad', 'breakdowns': ['region']}
     else:
-        params = {'date_preset': 'last_7d', 'level': 'ad'}
+        params = {'date_preset': 'last_7d', 'level': 'ad', 'breakdowns': ['region']}
     
     try:
         insights = account.get_insights(fields=fields, params=params)
@@ -61,6 +62,7 @@ def get_ads_data(start_date: str = None, end_date: str = None, account_id: str =
 
                 ad_id = item.get('ad_id')
                 audience_type = item.get('adset_name', '未標示受眾')
+                region_name = item.get('region', '未知區域') # 取得區域資料
                 
                 # 抓取素材圖與隱藏的 Optimization Goal
                 if ad_id in ad_info_cache:
@@ -127,6 +129,7 @@ def get_ads_data(start_date: str = None, end_date: str = None, account_id: str =
                 data_list.append({
                     "adName": item.get('ad_name', '未命名廣告'),
                     "adsetName": audience_type,
+                    "region": region_name, # 傳遞區域資料至前端
                     "objective": item.get('objective', ''),
                     "optimizationGoal": opt_goal,
                     "spend": spend,
