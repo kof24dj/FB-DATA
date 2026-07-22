@@ -165,8 +165,9 @@
             .then(result => {
                 document.getElementById('loading-text').style.display = 'none';
                 if (result.status === 'success') {
-                    if (result.data.length > 0) {
-                        processApiData(result.data);
+                    // 🌟 同時接收 data 與 region_data 進行處理
+                    if (result.data.length > 0 || (result.region_data && result.region_data.length > 0)) {
+                        processApiData(result.data, result.region_data || []);
                     } else {
                         document.getElementById('errorContainer').innerHTML = '<p class="error-msg">這個日期區間與帳號沒有廣告數據喔！</p>';
                     }
@@ -193,55 +194,58 @@
         return 'purchase';
     }
 
-    function processApiData(data) {
+    function processApiData(data, regionData) {
         let parentSummaries = { purchase: {}, lead: {}, message: {}, region: {} };
 
+        // 🌟 獨立出一個可帶入 row 資料的分類函數
+        function addDataToCategory(category, parentName, childName, rowData) {
+            let img = rowData.image || 'https://via.placeholder.com/60?text=無圖';
+
+            if (!parentSummaries[category][parentName]) {
+                parentSummaries[category][parentName] = { 
+                    adName: parentName, isExpanded: false, image: img, childrenMap: {},
+                    spend: 0, reach: 0, impressions: 0, allClicks: 0, 
+                    purchases: 0, convValue: 0, carts: 0,
+                    leads: 0, messages: 0
+                };
+            }
+            let p = parentSummaries[category][parentName];
+            if (p.image.includes('placeholder') && !img.includes('placeholder')) p.image = img;
+
+            if (!p.childrenMap[childName]) {
+                p.childrenMap[childName] = {
+                    adName: parentName, audience: childName, image: img, 
+                    spend: 0, reach: 0, impressions: 0, allClicks: 0, 
+                    purchases: 0, convValue: 0, carts: 0,
+                    leads: 0, messages: 0
+                };
+            }
+            let c = p.childrenMap[childName];
+
+            p.spend += rowData.spend; p.impressions += rowData.impressions; p.reach += rowData.reach; p.allClicks += rowData.allClicks;
+            p.purchases += rowData.purchases; p.convValue += rowData.convValue; p.carts += rowData.carts;
+            p.leads += rowData.leads; p.messages += rowData.messages;
+            
+            c.spend += rowData.spend; c.impressions += rowData.impressions; c.reach += rowData.reach; c.allClicks += rowData.allClicks;
+            c.purchases += rowData.purchases; c.convValue += rowData.convValue; c.carts += rowData.carts;
+            c.leads += rowData.leads; c.messages += rowData.messages;
+        }
+
+        // 🌟 1. 處理標準資料 (給購買、名單、訊息分頁，此時資料包含最完整的 Pixel 數據)
         data.forEach(row => {
             let adName = String(row.adName).replace(/複製|複本| |-|─/g, '');
             if (!adName) return;
-
             let cat = determineTab(row);
             let audienceType = row.adsetName || '未標示受眾';
+            addDataToCategory(cat, adName, audienceType, row);
+        });
+
+        // 🌟 2. 處理區域資料 (專門餵給區域分頁，這裡不會干擾到前面的購買數據)
+        regionData.forEach(row => {
+            let adName = String(row.adName).replace(/複製|複本| |-|─/g, '');
+            if (!adName) return;
             let regionName = row.region || '未知區域'; 
-            let img = row.image || 'https://via.placeholder.com/60?text=無圖';
-
-            function addDataToCategory(category, parentName, childName) {
-                if (!parentSummaries[category][parentName]) {
-                    parentSummaries[category][parentName] = { 
-                        adName: parentName, isExpanded: false, image: img, childrenMap: {},
-                        spend: 0, reach: 0, impressions: 0, allClicks: 0, 
-                        purchases: 0, convValue: 0, carts: 0,
-                        leads: 0, messages: 0
-                    };
-                }
-                let p = parentSummaries[category][parentName];
-                // 如果父層還沒有真實圖片，且新的圖片是真實的，就更新它
-                if (p.image.includes('placeholder') && !img.includes('placeholder')) p.image = img;
-
-                if (!p.childrenMap[childName]) {
-                    p.childrenMap[childName] = {
-                        adName: parentName, audience: childName, image: img, // 子層保留自己的圖片
-                        spend: 0, reach: 0, impressions: 0, allClicks: 0, 
-                        purchases: 0, convValue: 0, carts: 0,
-                        leads: 0, messages: 0
-                    };
-                }
-                let c = p.childrenMap[childName];
-
-                p.spend += row.spend; p.impressions += row.impressions; p.reach += row.reach; p.allClicks += row.allClicks;
-                p.purchases += row.purchases; p.convValue += row.convValue; p.carts += row.carts;
-                p.leads += row.leads; p.messages += row.messages;
-                
-                c.spend += row.spend; c.impressions += row.impressions; c.reach += row.reach; c.allClicks += row.allClicks;
-                c.purchases += row.purchases; c.convValue += row.convValue; c.carts += row.carts;
-                c.leads += row.leads; c.messages += row.messages;
-            }
-
-            // 1. 將資料依照「廣告目標」分類 (父層: 廣告名稱, 子層: 廣告受眾)
-            addDataToCategory(cat, adName, audienceType);
-
-            // 🌟 2. 將資料依照「區域」分類 (父層: 縣市區域, 子層: 廣告名稱)
-            addDataToCategory('region', regionName, adName);
+            addDataToCategory('region', regionName, adName, row);
         });
 
         ['purchase', 'lead', 'message', 'region'].forEach(cat => {
@@ -320,7 +324,6 @@
         let labelName = currentMode === 'region' ? '個廣告' : '個受眾';
         let audienceHtml = isChild ? `<span class="child-indent">↳</span> ${d.audience}` : `<span class="toggle-btn" onclick="toggleRow('${d.adName}')">${d.isExpanded ? "▼" : "▶"} ${d.children ? d.children.length : 0} ${labelName}</span>`;
         
-        // 🌟 圖片顯示邏輯調整：區域頁籤展開後，子層顯示廣告圖片，父層顯示區域圖標
         let imgHtml = '';
         if (currentMode === 'region') {
             imgHtml = isChild 
@@ -388,7 +391,6 @@
 
         let html = `<table><thead><tr>`;
         
-        // 🌟 表頭動態文字判斷：若為區域頁籤，第一欄改為縣市，第二欄改為廣告內容
         let col1Label = currentMode === 'region' ? '區域 (縣市)' : '廣告名稱';
         let col2Label = currentMode === 'region' ? '廣告內容' : '廣告組合 (受眾)';
         
