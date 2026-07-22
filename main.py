@@ -1,5 +1,6 @@
 import os
 import json
+import time # 🌟 新增：用於非同步等待
 import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -8,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from facebook_business.api import FacebookAdsApi
 from facebook_business.adobjects.adaccount import AdAccount
 from facebook_business.adobjects.ad import Ad
+from facebook_business.adobjects.adreportrun import AdReportRun # 🌟 新增：用於處理非同步報表
 
 load_dotenv()
 ACCESS_TOKEN = os.getenv('META_ACCESS_TOKEN')
@@ -25,7 +27,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 🌟 新增：當任何人連上你的網址，直接把網頁檔案 (index.html) 給他看
+# 🌟 當任何人連上你的網址，直接把網頁檔案 (index.html) 給他看
 @app.get("/")
 def serve_webpage():
     if os.path.exists("index.html"):
@@ -43,14 +45,27 @@ def get_ads_data(start_date: str = None, end_date: str = None, account_id: str =
         'actions', 'action_values'
     ]
     
-    # 🌟 新增 breakdowns=['region'] 來獲取縣市區域資料
+    # 🌟 breakdowns=['region'] 來獲取縣市區域資料
     if start_date and end_date:
         params = {'time_range': json.dumps({'since': start_date, 'until': end_date}), 'level': 'ad', 'breakdowns': ['region']}
     else:
         params = {'date_preset': 'last_7d', 'level': 'ad', 'breakdowns': ['region']}
     
     try:
-        insights = account.get_insights(fields=fields, params=params)
+        # 🌟 修改為「非同步 (Async)」請求，避免 Meta 伺服器 Timeout (Error 1504044)
+        async_job = account.get_insights(fields=fields, params=params, is_async=True)
+        
+        # 🌟 輪詢等待 Meta 伺服器處理完成
+        async_job.api_get()
+        while async_job[AdReportRun.Field.async_percent_completion] < 100 or async_job[AdReportRun.Field.async_status] != "Job Completed":
+            if async_job[AdReportRun.Field.async_status] == "Job Failed":
+                return {"status": "error", "message": "Meta 伺服器處理報表失敗，請稍後再試。"}
+            time.sleep(2) # 每 2 秒檢查一次進度
+            async_job.api_get()
+            
+        # 🌟 取得處理完畢的資料
+        insights = async_job.get_result()
+        
         data_list = []
         ad_info_cache = {}  
         
@@ -62,7 +77,7 @@ def get_ads_data(start_date: str = None, end_date: str = None, account_id: str =
 
                 ad_id = item.get('ad_id')
                 audience_type = item.get('adset_name', '未標示受眾')
-                region_name = item.get('region', '未知區域') # 取得區域資料
+                region_name = item.get('region', '未知區域') 
                 
                 # 抓取素材圖與隱藏的 Optimization Goal
                 if ad_id in ad_info_cache:
@@ -113,9 +128,10 @@ def get_ads_data(start_date: str = None, end_date: str = None, account_id: str =
                                 return float(act.get('value', 0))
                     return 0.0
 
-                purchases = int(get_exact_action_value(item.get('actions', []), ['purchase', 'omni_purchase']))
-                carts = int(get_exact_action_value(item.get('actions', []), ['add_to_cart', 'omni_add_to_cart']))
-                conv_value = get_exact_action_value(item.get('action_values', []), ['purchase', 'omni_purchase'])
+                # 🌟 更新：補上 offsite_conversion.fb_pixel_ 解決轉換、CPA、ROAS 無法顯示的問題
+                purchases = int(get_exact_action_value(item.get('actions', []), ['purchase', 'omni_purchase', 'offsite_conversion.fb_pixel_purchase']))
+                carts = int(get_exact_action_value(item.get('actions', []), ['add_to_cart', 'omni_add_to_cart', 'offsite_conversion.fb_pixel_add_to_cart']))
+                conv_value = get_exact_action_value(item.get('action_values', []), ['purchase', 'omni_purchase', 'offsite_conversion.fb_pixel_purchase'])
                 leads = int(get_exact_action_value(item.get('actions', []), ['onsite_conversion.lead_grouped']))
                 
                 msg_starts = get_exact_action_value(item.get('actions', []), [
@@ -129,7 +145,7 @@ def get_ads_data(start_date: str = None, end_date: str = None, account_id: str =
                 data_list.append({
                     "adName": item.get('ad_name', '未命名廣告'),
                     "adsetName": audience_type,
-                    "region": region_name, # 傳遞區域資料至前端
+                    "region": region_name, 
                     "objective": item.get('objective', ''),
                     "optimizationGoal": opt_goal,
                     "spend": spend,
@@ -147,7 +163,7 @@ def get_ads_data(start_date: str = None, end_date: str = None, account_id: str =
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-# 🌟 新增：讓雲端平台自動分配 Port 來啟動伺服器
+# 🌟 讓雲端平台自動分配 Port 來啟動伺服器
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run("main:app", host="0.0.0.0", port=port)
