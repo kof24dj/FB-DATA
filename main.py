@@ -1,6 +1,6 @@
 import os
 import json
-import time # 🌟 新增：用於非同步等待
+import time 
 import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from facebook_business.api import FacebookAdsApi
 from facebook_business.adobjects.adaccount import AdAccount
 from facebook_business.adobjects.ad import Ad
-from facebook_business.adobjects.adreportrun import AdReportRun # 🌟 新增：用於處理非同步報表
+from facebook_business.adobjects.adreportrun import AdReportRun 
 
 load_dotenv()
 ACCESS_TOKEN = os.getenv('META_ACCESS_TOKEN')
@@ -27,7 +27,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 🌟 當任何人連上你的網址，直接把網頁檔案 (index.html) 給他看
 @app.get("/")
 def serve_webpage():
     if os.path.exists("index.html"):
@@ -45,125 +44,151 @@ def get_ads_data(start_date: str = None, end_date: str = None, account_id: str =
         'actions', 'action_values'
     ]
     
-    # 🌟 breakdowns=['region'] 來獲取縣市區域資料
+    # 🌟 兵分兩路：參數 A (抓購買轉換用)、參數 B (抓縣市區域用)
+    params_std = {'level': 'ad'}
+    params_reg = {'level': 'ad', 'breakdowns': ['region']}
+    
     if start_date and end_date:
-        params = {'time_range': json.dumps({'since': start_date, 'until': end_date}), 'level': 'ad', 'breakdowns': ['region']}
+        time_range = json.dumps({'since': start_date, 'until': end_date})
+        params_std['time_range'] = time_range
+        params_reg['time_range'] = time_range
     else:
-        params = {'date_preset': 'last_7d', 'level': 'ad', 'breakdowns': ['region']}
+        params_std['date_preset'] = 'last_7d'
+        params_reg['date_preset'] = 'last_7d'
     
     try:
-        # 🌟 修改為「非同步 (Async)」請求，避免 Meta 伺服器 Timeout (Error 1504044)
-        async_job = account.get_insights(fields=fields, params=params, is_async=True)
+        # 🌟 平行發起兩個 Async 任務
+        job_std = account.get_insights(fields=fields, params=params_std, is_async=True)
+        job_reg = account.get_insights(fields=fields, params=params_reg, is_async=True)
         
-        # 🌟 輪詢等待 Meta 伺服器處理完成
-        async_job.api_get()
-        while async_job[AdReportRun.Field.async_percent_completion] < 100 or async_job[AdReportRun.Field.async_status] != "Job Completed":
-            if async_job[AdReportRun.Field.async_status] == "Job Failed":
-                return {"status": "error", "message": "Meta 伺服器處理報表失敗，請稍後再試。"}
-            time.sleep(2) # 每 2 秒檢查一次進度
-            async_job.api_get()
+        # 🌟 同時等待兩個任務完成
+        while True:
+            job_std.api_get()
+            job_reg.api_get()
             
-        # 🌟 取得處理完畢的資料
-        insights = async_job.get_result()
+            std_status = job_std.get(AdReportRun.Field.async_status)
+            reg_status = job_reg.get(AdReportRun.Field.async_status)
+            
+            if std_status == "Job Failed" or reg_status == "Job Failed":
+                return {"status": "error", "message": "Meta 伺服器處理報表失敗，請稍後再試。"}
+                
+            if std_status == "Job Completed" and reg_status == "Job Completed":
+                break
+            time.sleep(2) 
+            
+        insights_std = job_std.get_result()
+        insights_reg = job_reg.get_result()
         
-        data_list = []
         ad_info_cache = {}  
         
-        if insights:
-            for item in insights:
-                spend = float(item.get('spend', 0))
-                if spend == 0:
-                    continue
+        # 🌟 建立一個統一的資料整理函數
+        def parse_insight_item(item):
+            spend = float(item.get('spend', 0))
+            if spend == 0:
+                return None
 
-                ad_id = item.get('ad_id')
-                audience_type = item.get('adset_name', '未標示受眾')
-                region_name = item.get('region', '未知區域') 
+            ad_id = item.get('ad_id')
+            audience_type = item.get('adset_name', '未標示受眾')
+            region_name = item.get('region', '未知區域') 
+            
+            if ad_id in ad_info_cache:
+                image_url = ad_info_cache[ad_id]['image']
+                opt_goal = ad_info_cache[ad_id]['opt_goal']
+            else:
+                image_url = ""
+                opt_goal = ""
+                if ad_id:
+                    try:
+                        ad = Ad(ad_id)
+                        ad_details = ad.api_get(fields=['adset{optimization_goal}'])
+                        if 'adset' in ad_details and 'optimization_goal' in ad_details['adset']:
+                            opt_goal = ad_details['adset']['optimization_goal']
+
+                        creatives = ad.get_ad_creatives(fields=[
+                            'thumbnail_url', 'image_url', 'object_story_spec',
+                            'effective_object_story_spec', 'asset_feed_spec'
+                        ])
+                        if creatives:
+                            creative = creatives[0]
+                            image_url = creative.get('thumbnail_url') or creative.get('image_url', '')
+                            if not image_url:
+                                story = creative.get('effective_object_story_spec') or creative.get('object_story_spec', {})
+                                if 'link_data' in story and 'picture' in story['link_data']:
+                                    image_url = story['link_data']['picture']
+                                elif 'video_data' in story and 'image_url' in story['video_data']:
+                                    image_url = story['video_data']['image_url']
+                                elif 'link_data' in story and 'child_attachments' in story['link_data']:
+                                    attachments = story['link_data']['child_attachments']
+                                    if len(attachments) > 0 and 'picture' in attachments[0]:
+                                        image_url = attachments[0]['picture']
+                            if not image_url:
+                                asset = creative.get('asset_feed_spec', {})
+                                if 'images' in asset and len(asset['images']) > 0:
+                                    image_url = asset['images'][0].get('url', '')
+                                elif 'videos' in asset and len(asset['videos']) > 0:
+                                    image_url = asset['videos'][0].get('thumbnail_url', '')
+                    except Exception:
+                        pass 
+                ad_info_cache[ad_id] = {'image': image_url, 'opt_goal': opt_goal}
+
+            def get_exact_action_value(actions_list, preferred_types):
+                if not actions_list: return 0.0
+                for p_type in preferred_types:
+                    for act in actions_list:
+                        if act.get('action_type') == p_type:
+                            return float(act.get('value', 0))
+                return 0.0
+
+            purchases = int(get_exact_action_value(item.get('actions', []), ['purchase', 'omni_purchase', 'offsite_conversion.fb_pixel_purchase']))
+            carts = int(get_exact_action_value(item.get('actions', []), ['add_to_cart', 'omni_add_to_cart', 'offsite_conversion.fb_pixel_add_to_cart']))
+            conv_value = get_exact_action_value(item.get('action_values', []), ['purchase', 'omni_purchase', 'offsite_conversion.fb_pixel_purchase'])
+            leads = int(get_exact_action_value(item.get('actions', []), ['onsite_conversion.lead_grouped']))
+            
+            msg_starts = get_exact_action_value(item.get('actions', []), [
+                'onsite_conversion.messaging_conversation_started_7d', 
+                'messaging_conversation_started_7d',
+                'onsite_conversion.messaging_first_reply'
+            ])
+            comments = get_exact_action_value(item.get('actions', []), ['comment'])
+            messages = int(msg_starts + comments)
+
+            return {
+                "adName": item.get('ad_name', '未命名廣告'),
+                "adsetName": audience_type,
+                "region": region_name, 
+                "objective": item.get('objective', ''),
+                "optimizationGoal": opt_goal,
+                "spend": spend,
+                "impressions": int(item.get('impressions', 0)),
+                "reach": int(item.get('reach', 0)),
+                "allClicks": int(item.get('clicks', 0)),
+                "purchases": purchases,
+                "convValue": conv_value,
+                "carts": carts,
+                "leads": leads,
+                "messages": messages,
+                "image": image_url
+            }
+
+        # 🌟 分別解析兩份資料
+        data_list = []
+        if insights_std:
+            for item in insights_std:
+                parsed = parse_insight_item(item)
+                if parsed: data_list.append(parsed)
                 
-                # 抓取素材圖與隱藏的 Optimization Goal
-                if ad_id in ad_info_cache:
-                    image_url = ad_info_cache[ad_id]['image']
-                    opt_goal = ad_info_cache[ad_id]['opt_goal']
-                else:
-                    image_url = ""
-                    opt_goal = ""
-                    if ad_id:
-                        try:
-                            ad = Ad(ad_id)
-                            ad_details = ad.api_get(fields=['adset{optimization_goal}'])
-                            if 'adset' in ad_details and 'optimization_goal' in ad_details['adset']:
-                                opt_goal = ad_details['adset']['optimization_goal']
+        region_list = []
+        if insights_reg:
+            for item in insights_reg:
+                parsed = parse_insight_item(item)
+                if parsed: region_list.append(parsed)
 
-                            creatives = ad.get_ad_creatives(fields=[
-                                'thumbnail_url', 'image_url', 'object_story_spec',
-                                'effective_object_story_spec', 'asset_feed_spec'
-                            ])
-                            if creatives:
-                                creative = creatives[0]
-                                image_url = creative.get('thumbnail_url') or creative.get('image_url', '')
-                                if not image_url:
-                                    story = creative.get('effective_object_story_spec') or creative.get('object_story_spec', {})
-                                    if 'link_data' in story and 'picture' in story['link_data']:
-                                        image_url = story['link_data']['picture']
-                                    elif 'video_data' in story and 'image_url' in story['video_data']:
-                                        image_url = story['video_data']['image_url']
-                                    elif 'link_data' in story and 'child_attachments' in story['link_data']:
-                                        attachments = story['link_data']['child_attachments']
-                                        if len(attachments) > 0 and 'picture' in attachments[0]:
-                                            image_url = attachments[0]['picture']
-                                if not image_url:
-                                    asset = creative.get('asset_feed_spec', {})
-                                    if 'images' in asset and len(asset['images']) > 0:
-                                        image_url = asset['images'][0].get('url', '')
-                                    elif 'videos' in asset and len(asset['videos']) > 0:
-                                        image_url = asset['videos'][0].get('thumbnail_url', '')
-                        except Exception as e:
-                            pass 
-                    ad_info_cache[ad_id] = {'image': image_url, 'opt_goal': opt_goal}
-
-                def get_exact_action_value(actions_list, preferred_types):
-                    if not actions_list: return 0.0
-                    for p_type in preferred_types:
-                        for act in actions_list:
-                            if act.get('action_type') == p_type:
-                                return float(act.get('value', 0))
-                    return 0.0
-
-                # 🌟 更新：補上 offsite_conversion.fb_pixel_ 解決轉換、CPA、ROAS 無法顯示的問題
-                purchases = int(get_exact_action_value(item.get('actions', []), ['purchase', 'omni_purchase', 'offsite_conversion.fb_pixel_purchase']))
-                carts = int(get_exact_action_value(item.get('actions', []), ['add_to_cart', 'omni_add_to_cart', 'offsite_conversion.fb_pixel_add_to_cart']))
-                conv_value = get_exact_action_value(item.get('action_values', []), ['purchase', 'omni_purchase', 'offsite_conversion.fb_pixel_purchase'])
-                leads = int(get_exact_action_value(item.get('actions', []), ['onsite_conversion.lead_grouped']))
-                
-                msg_starts = get_exact_action_value(item.get('actions', []), [
-                    'onsite_conversion.messaging_conversation_started_7d', 
-                    'messaging_conversation_started_7d',
-                    'onsite_conversion.messaging_first_reply'
-                ])
-                comments = get_exact_action_value(item.get('actions', []), ['comment'])
-                messages = int(msg_starts + comments)
-
-                data_list.append({
-                    "adName": item.get('ad_name', '未命名廣告'),
-                    "adsetName": audience_type,
-                    "region": region_name, 
-                    "objective": item.get('objective', ''),
-                    "optimizationGoal": opt_goal,
-                    "spend": spend,
-                    "impressions": int(item.get('impressions', 0)),
-                    "reach": int(item.get('reach', 0)),
-                    "allClicks": int(item.get('clicks', 0)),
-                    "purchases": purchases,
-                    "convValue": conv_value,
-                    "carts": carts,
-                    "leads": leads,
-                    "messages": messages,
-                    "image": image_url
-                })
-        return {"status": "success", "data": data_list}
+        # 🌟 回傳兩組數據給前端
+        return {"status": "success", "data": data_list, "region_data": region_list}
+        
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-# 🌟 讓雲端平台自動分配 Port 來啟動伺服器
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run("main:app", host="0.0.0.0", port=port)
