@@ -44,13 +44,15 @@ def get_ads_data(start_date: str = None, end_date: str = None, account_id: str =
         'actions', 'action_values'
     ]
 
+    # 🌟 每日趨勢：加入 ad_id 與 objective 以便前端對應分頁 (不抓 reach 避免 Timeout)
     fields_daily = [
-        'spend', 'impressions', 'reach', 'clicks', 'actions', 'action_values'
+        'ad_id', 'objective', 'spend', 'impressions', 'clicks', 'actions', 'action_values'
     ]
     
     params_std = {'level': 'ad'}
     params_reg = {'level': 'ad', 'breakdowns': ['region']}
-    params_daily = {'level': 'account', 'time_increment': 1} 
+    # 🌟 改用 level: ad，讓每日數據也能被分類到不同分頁
+    params_daily = {'level': 'ad', 'time_increment': 1} 
     
     if start_date and end_date:
         time_range = json.dumps({'since': start_date, 'until': end_date})
@@ -180,6 +182,9 @@ def get_ads_data(start_date: str = None, end_date: str = None, account_id: str =
             spend = float(item.get('spend', 0))
             if spend == 0: return None
             
+            ad_id = item.get('ad_id')
+            opt_goal = ad_info_cache.get(ad_id, {}).get('opt_goal', '')
+            
             purchases = int(get_exact_action_value(item.get('actions', []), ['purchase', 'omni_purchase', 'offsite_conversion.fb_pixel_purchase']))
             conv_value = get_exact_action_value(item.get('action_values', []), ['purchase', 'omni_purchase', 'offsite_conversion.fb_pixel_purchase'])
             leads = int(get_exact_action_value(item.get('actions', []), ['lead', 'onsite_conversion.lead_grouped']))
@@ -191,8 +196,11 @@ def get_ads_data(start_date: str = None, end_date: str = None, account_id: str =
             ])
             comments = get_exact_action_value(item.get('actions', []), ['comment'])
             
+            # 🌟 回傳詳細屬性以便前端判斷分類
             return {
                 "date": item.get('date_start', ''),
+                "objective": item.get('objective', ''),
+                "optimizationGoal": opt_goal,
                 "spend": spend,
                 "impressions": int(item.get('impressions', 0)),
                 "clicks": int(item.get('clicks', 0)),
