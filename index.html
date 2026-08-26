@@ -7,7 +7,6 @@
     <meta name="referrer" content="no-referrer">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
-        /* 🌟 根據參考圖設計的現代化簡約樣式 */
         body { font-family: 'Roboto', 'Segoe UI', Arial, sans-serif; padding: 20px; color: #333; background-color: #f1f3f4; margin: 0; }
         .container { max-width: 1400px; margin: auto; }
         h2 { color: #202124; text-align: center; margin-bottom: 30px; font-weight: 500;}
@@ -18,7 +17,6 @@
         .btn-fetch { background-color: #1a73e8; color: white; padding: 10px 24px; border: none; border-radius: 4px; cursor: pointer; font-size: 15px; font-weight: 500; transition: background 0.2s; }
         .btn-fetch:hover { background-color: #1557b0; }
         
-        /* 🌟 總成效 KPI 卡片區塊 */
         .kpi-container { display: flex; gap: 15px; justify-content: space-between; margin-bottom: 25px; flex-wrap: wrap; }
         .kpi-card { background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px 20px; flex: 1; min-width: 120px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
         .kpi-title { font-size: 12px; color: #5f6368; margin-bottom: 6px; font-weight: 500; text-transform: uppercase; }
@@ -26,7 +24,7 @@
         
         .section-title { font-size: 16px; font-weight: bold; margin-bottom: 15px; color: #202124; margin-top: 30px; }
 
-        .tabs { display: flex; justify-content: flex-start; margin-bottom: 15px; gap: 8px; }
+        .tabs { display: flex; justify-content: flex-start; margin-bottom: 15px; gap: 8px; flex-wrap: wrap; }
         .tab-btn { padding: 10px 20px; font-size: 14px; font-weight: 500; cursor: pointer; border: 1px solid #dadce0; border-radius: 20px; background-color: white; color: #5f6368; transition: 0.2s; }
         .tab-btn.active { background-color: #e8f0fe; color: #1a73e8; border-color: #e8f0fe; }
         .tab-btn:hover:not(.active) { background-color: #f8f9fa; }
@@ -44,9 +42,8 @@
         .btn-export { color: #188038; border-color: #188038; }
         .btn-export:hover { background-color: #e6f4ea; }
 
-        /* 🌟 表格樣式 (符合 Looker Studio 風格的藍色表頭) */
-        .table-wrapper { background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; margin-bottom: 30px; border: 1px solid #e0e0e0; }
-        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .table-wrapper { background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; margin-bottom: 30px; border: 1px solid #e0e0e0; overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 1000px; }
         th, td { padding: 12px 15px; text-align: right; vertical-align: middle; border-bottom: 1px solid #f1f3f4; }
         th { background-color: #1a73e8; color: white; cursor: pointer; user-select: none; font-weight: 500; border-bottom: none; }
         th:hover { background-color: #1557b0; }
@@ -96,35 +93,31 @@
 
     <div id="actionContainer" style="display: none;">
         
-        <!-- 🌟 總計 KPI 卡片區塊 -->
-        <div class="kpi-container" id="kpi-board">
-            <!-- 動態生成卡片 -->
+        <div class="tabs">
+            <button class="tab-btn" id="tab-purchase" onclick="switchTab('purchase')">🛒 轉換(購買)廣告</button>
+            <button class="tab-btn" id="tab-lead" onclick="switchTab('lead')">📝 表單(名單)廣告</button>
+            <button class="tab-btn" id="tab-message" onclick="switchTab('message')">💬 訊息型廣告</button>
+            <button class="tab-btn" id="tab-region" onclick="switchTab('region')">📍 區域(縣市)分析</button>
         </div>
 
+        <!-- 🌟 總計 KPI 卡片區塊 -->
+        <div class="kpi-container" id="kpi-board"></div>
+
         <!-- 🌟 每日成效趨勢表 -->
-        <div class="section-title">📅 每日成效趨勢</div>
-        <div class="table-wrapper" id="daily-table-container">
-            <!-- 動態生成每日表格 -->
-        </div>
+        <div class="section-title" id="daily-table-title">📅 帳號每日趨勢 (總覽)</div>
+        <div class="table-wrapper" id="daily-table-container"></div>
 
         <!-- 🌟 廣告/區域詳細資料 -->
         <div class="section-title">📁 廣告成效詳細列表</div>
-        <div class="tabs">
-            <button class="tab-btn" id="tab-purchase" onclick="switchTab('purchase')">🛒 轉換(購買)成效</button>
-            <button class="tab-btn" id="tab-region" onclick="switchTab('region')">📍 區域成效分析</button>
-        </div>
-
         <div class="controls-row">
             <div class="controls-left">
                 <input type="text" id="searchInput" class="search-input" placeholder="🔍 搜尋名稱..." oninput="renderTable()">
                 <button class="btn-action" id="btnToggleAll" onclick="toggleAll()">🔽 展開/收合所有</button>
             </div>
-            <button class="btn-action btn-export" onclick="exportToExcel()">⬇️ 匯出 Excel</button>
+            <button class="btn-action btn-export" onclick="exportToExcel()">⬇️ 匯出此分頁 Excel</button>
         </div>
 
-        <div class="table-wrapper" id="tableContainer">
-            <!-- 動態生成表格 -->
-        </div>
+        <div class="table-wrapper" id="tableContainer"></div>
     </div>
 
     <div id="welcomeContainer" style="text-align: center; padding: 60px; color: #5f6368; font-size: 16px; background: white; border-radius: 8px; margin-top: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid #e0e0e0;">
@@ -140,7 +133,7 @@
         window.location.href = "https://www.google.com";
     }
 
-    let globalCategorizedData = { purchase: [], region: [] };
+    let globalCategorizedData = { purchase: [], lead: [], message: [], region: [] };
     let globalDailyData = [];
     let currentData = [];
     let currentSortCol = 'spend'; 
@@ -168,6 +161,9 @@
         currentSortCol = 'spend'; 
         isAscending = false;
         isAllExpanded = false;
+        
+        // 🌟 切換分頁時，同步更新 KPI 與每日趨勢的欄位
+        renderKPIAndDaily(globalDailyData, currentMode);
         
         if (currentData.length > 0) {
             sortTable('spend'); 
@@ -208,11 +204,25 @@
             });
     }
 
+    function determineTab(row) {
+        let obj = (row.objective || '').toUpperCase();
+        let opt = (row.optimizationGoal || '').toUpperCase();
+
+        if (opt.includes('CONVERSATION') || opt.includes('MESSAGE') || opt.includes('REPLY') || obj.includes('MESSAGE')) {
+            return 'message';
+        }
+        if (obj.includes('LEAD') || opt.includes('LEAD')) {
+            return 'lead';
+        }
+        return 'purchase';
+    }
+
     function createEmptyNode(mainName, image, subName = null) {
         let node = {
             adName: mainName, image: image,
             spend: 0, reach: 0, impressions: 0, allClicks: 0, 
-            purchases: 0, convValue: 0, carts: 0
+            purchases: 0, convValue: 0, carts: 0,
+            leads: 0, messages: 0
         };
         if (subName === null) {
             node.isExpanded = false;
@@ -231,38 +241,37 @@
         node.purchases += (row.purchases || 0); 
         node.convValue += (row.convValue || 0); 
         node.carts += (row.carts || 0);
+        node.leads += (row.leads || 0);
+        node.messages += (row.messages || 0);
     }
 
     function processApiData(standardData, regionData, dailyData) {
-        // 🌟 1. 處理每日與總成效 KPI
-        globalDailyData = dailyData.sort((a, b) => a.date.localeCompare(b.date));
-        renderKPIAndDaily(globalDailyData);
+        let parentSummaries = { purchase: {}, lead: {}, message: {}, region: {} };
 
-        let parentSummaries = { purchase: {}, region: {} };
-
-        // 🌟 2. 處理標準資料 (轉換分頁)
+        // 🌟 分派標準資料到對應的目標分頁 (Purchase, Lead, Message)
         standardData.forEach(row => {
             let rawAdName = String(row.adName || '').replace(/複製|複本| |-|─/g, '');
             if (!rawAdName) return;
+            let cat = determineTab(row); 
             let audienceType = row.adsetName || '未標示受眾';
             let img = row.image || 'https://via.placeholder.com/60?text=無圖';
 
-            if (!parentSummaries.purchase[rawAdName]) {
-                parentSummaries.purchase[rawAdName] = createEmptyNode(rawAdName, img);
+            if (!parentSummaries[cat][rawAdName]) {
+                parentSummaries[cat][rawAdName] = createEmptyNode(rawAdName, img);
             }
-            let pPur = parentSummaries.purchase[rawAdName];
-            if (pPur.image.includes('placeholder') && !img.includes('placeholder')) pPur.image = img;
+            let pNode = parentSummaries[cat][rawAdName];
+            if (pNode.image.includes('placeholder') && !img.includes('placeholder')) pNode.image = img;
 
-            if (!pPur.childrenMap[audienceType]) {
-                pPur.childrenMap[audienceType] = createEmptyNode(rawAdName, img, audienceType);
+            if (!pNode.childrenMap[audienceType]) {
+                pNode.childrenMap[audienceType] = createEmptyNode(rawAdName, img, audienceType);
             }
-            let cPur = pPur.childrenMap[audienceType];
+            let cNode = pNode.childrenMap[audienceType];
             
-            addMetrics(pPur, row);
-            addMetrics(cPur, row);
+            addMetrics(pNode, row);
+            addMetrics(cNode, row);
         });
 
-        // 🌟 3. 處理區域資料 (區域分頁)
+        // 🌟 處理區域資料
         regionData.forEach(row => {
             let rawAdName = String(row.adName || '').replace(/複製|複本| |-|─/g, '');
             if (!rawAdName) return;
@@ -284,7 +293,7 @@
             addMetrics(cReg, row);
         });
 
-        ['purchase', 'region'].forEach(cat => {
+        ['purchase', 'lead', 'message', 'region'].forEach(cat => {
             globalCategorizedData[cat] = Object.values(parentSummaries[cat]).map(p => {
                 calcMetrics(p); 
                 p.children = Object.values(p.childrenMap); 
@@ -294,16 +303,11 @@
             });
         });
 
-        currentData = globalCategorizedData[currentMode];
-        currentSortCol = 'spend';
-        isAscending = false;
+        globalDailyData = dailyData.sort((a, b) => a.date.localeCompare(b.date));
         
+        // 渲染畫面
         document.getElementById('actionContainer').style.display = 'block';
-        if (currentData.length > 0) {
-            sortTable('spend');
-        } else {
-            renderTable();
-        }
+        switchTab(currentMode); 
     }
 
     function calcMetrics(d) {
@@ -313,56 +317,99 @@
         d.cpaPur = d.purchases > 0 ? (d.spend / d.purchases) : 0;
         d.roas = d.spend > 0 ? (d.convValue / d.spend) : 0;
         d.costPerCart = d.carts > 0 ? (d.spend / d.carts) : 0;
+        d.cpl = d.leads > 0 ? (d.spend / d.leads) : 0;
+        d.cpaMsg = d.messages > 0 ? (d.spend / d.messages) : 0;
     }
 
-    // 🌟 渲染上方 KPI 與每日趨勢表格
-    function renderKPIAndDaily(dailyData) {
-        let tImp = 0, tClick = 0, tPur = 0, tSpend = 0;
+    // 🌟 動態渲染 KPI 與每日趨勢 (依據目前分頁)
+    function renderKPIAndDaily(dailyData, mode) {
+        let tImp = 0, tClick = 0, tSpend = 0;
+        let tPur = 0, tConvVal = 0, tLead = 0, tMsg = 0;
         
         let dailyRowsHtml = '';
         dailyData.forEach(d => {
             tImp += d.impressions;
             tClick += d.clicks;
-            tPur += d.purchases;
             tSpend += d.spend;
+            tPur += d.purchases;
+            tConvVal += d.convValue;
+            tLead += d.leads;
+            tMsg += d.messages;
             
             let ctr = d.impressions > 0 ? (d.clicks / d.impressions * 100).toFixed(2) + '%' : '0.00%';
             let cpc = d.clicks > 0 ? (d.spend / d.clicks).toFixed(2) : '0.00';
-            let cpa = d.purchases > 0 ? Math.round(d.spend / d.purchases) : '0';
             
-            // 格式化日期： 2026-06-12 -> 2026年6月12日
             let dateObj = new Date(d.date);
             let dateStr = `${dateObj.getFullYear()}年${dateObj.getMonth()+1}月${dateObj.getDate()}日`;
 
-            dailyRowsHtml += `<tr>
+            let rowHtml = `<tr>
                 <td>${dateStr}</td>
                 <td>${d.impressions.toLocaleString()}</td>
                 <td>${d.clicks.toLocaleString()}</td>
                 <td>${ctr}</td>
-                <td>${d.purchases}</td>
                 <td>${Math.round(d.spend).toLocaleString()}</td>
-                <td>${cpc}</td>
-                <td>${cpa}</td>
-            </tr>`;
+                <td>${cpc}</td>`;
+
+            // 依據分頁填入不同的動態欄位
+            if (mode === 'lead') {
+                let cpl = d.leads > 0 ? Math.round(d.spend / d.leads) : '0';
+                rowHtml += `<td>${d.leads}</td><td>${cpl}</td>`;
+            } else if (mode === 'message') {
+                let cpaMsg = d.messages > 0 ? Math.round(d.spend / d.messages) : '0';
+                rowHtml += `<td>${d.messages}</td><td>${cpaMsg}</td>`;
+            } else { // purchase 或是 region 預設顯示購買
+                let cpaPur = d.purchases > 0 ? Math.round(d.spend / d.purchases) : '0';
+                let roas = d.spend > 0 ? (d.convValue / d.spend).toFixed(2) : '0.00';
+                rowHtml += `<td>${d.purchases}</td><td>${cpaPur}</td><td>${roas}</td>`;
+            }
+            rowHtml += `</tr>`;
+            dailyRowsHtml += rowHtml;
         });
 
-        // 計算總計的衍生指標
         let tCtr = tImp > 0 ? (tClick / tImp * 100).toFixed(2) + '%' : '0.00%';
         let tCpc = tClick > 0 ? (tSpend / tClick).toFixed(2) : '0.00';
-        let tCpa = tPur > 0 ? Math.round(tSpend / tPur) : '0';
 
-        // 生成 KPI 卡片
-        document.getElementById('kpi-board').innerHTML = `
+        // 產生 KPI 卡片
+        let kpiHtml = `
             <div class="kpi-card"><div class="kpi-title">Impression</div><div class="kpi-value">${tImp.toLocaleString()}</div></div>
             <div class="kpi-card"><div class="kpi-title">Clicks</div><div class="kpi-value">${tClick.toLocaleString()}</div></div>
             <div class="kpi-card"><div class="kpi-title">CTR</div><div class="kpi-value">${tCtr}</div></div>
-            <div class="kpi-card"><div class="kpi-title">Conversions</div><div class="kpi-value">${tPur.toLocaleString()}</div></div>
             <div class="kpi-card"><div class="kpi-title">Spend</div><div class="kpi-value">${Math.round(tSpend).toLocaleString()}</div></div>
             <div class="kpi-card"><div class="kpi-title">CPC</div><div class="kpi-value">${tCpc}</div></div>
-            <div class="kpi-card"><div class="kpi-title">CPA</div><div class="kpi-value">${tCpa.toLocaleString()}</div></div>
         `;
+        
+        let extraTotalHtml = '';
+        let theadExtra = '';
 
-        // 組合每日表格
+        if (mode === 'lead') {
+            let tCpl = tLead > 0 ? Math.round(tSpend / tLead) : '0';
+            kpiHtml += `<div class="kpi-card"><div class="kpi-title">Leads (名單)</div><div class="kpi-value">${tLead.toLocaleString()}</div></div>
+                        <div class="kpi-card"><div class="kpi-title">CPL</div><div class="kpi-value">${tCpl.toLocaleString()}</div></div>`;
+            theadExtra = `<th>Leads</th><th>CPL</th>`;
+            extraTotalHtml = `<td>${tLead.toLocaleString()}</td><td>${tCpl.toLocaleString()}</td>`;
+            document.getElementById('daily-table-title').innerText = "📅 帳號每日趨勢 (名單成效)";
+            
+        } else if (mode === 'message') {
+            let tCpaMsg = tMsg > 0 ? Math.round(tSpend / tMsg) : '0';
+            kpiHtml += `<div class="kpi-card"><div class="kpi-title">Messages (訊息)</div><div class="kpi-value">${tMsg.toLocaleString()}</div></div>
+                        <div class="kpi-card"><div class="kpi-title">Msg CPA</div><div class="kpi-value">${tCpaMsg.toLocaleString()}</div></div>`;
+            theadExtra = `<th>Messages</th><th>CPA</th>`;
+            extraTotalHtml = `<td>${tMsg.toLocaleString()}</td><td>${tCpaMsg.toLocaleString()}</td>`;
+            document.getElementById('daily-table-title').innerText = "📅 帳號每日趨勢 (訊息成效)";
+
+        } else {
+            let tCpaPur = tPur > 0 ? Math.round(tSpend / tPur) : '0';
+            let tRoas = tSpend > 0 ? (tConvVal / tSpend).toFixed(2) : '0.00';
+            kpiHtml += `<div class="kpi-card"><div class="kpi-title">Conversions (購買)</div><div class="kpi-value">${tPur.toLocaleString()}</div></div>
+                        <div class="kpi-card"><div class="kpi-title">CPA</div><div class="kpi-value">${tCpaPur.toLocaleString()}</div></div>
+                        <div class="kpi-card"><div class="kpi-title">ROAS</div><div class="kpi-value">${tRoas}</div></div>`;
+            theadExtra = `<th>Conversions</th><th>CPA</th><th>ROAS</th>`;
+            extraTotalHtml = `<td>${tPur.toLocaleString()}</td><td>${tCpaPur.toLocaleString()}</td><td>${tRoas}</td>`;
+            document.getElementById('daily-table-title').innerText = "📅 帳號每日趨勢 (轉換成效)";
+        }
+
+        document.getElementById('kpi-board').innerHTML = kpiHtml;
+
         let dailyTable = `<table>
             <thead>
                 <tr>
@@ -370,10 +417,9 @@
                     <th>Impression</th>
                     <th>Clicks</th>
                     <th>CTR</th>
-                    <th>Conversions</th>
                     <th>Spend</th>
                     <th>CPC</th>
-                    <th>CPA</th>
+                    ${theadExtra}
                 </tr>
             </thead>
             <tbody>
@@ -383,10 +429,9 @@
                     <td>${tImp.toLocaleString()}</td>
                     <td>${tClick.toLocaleString()}</td>
                     <td>${tCtr}</td>
-                    <td>${tPur.toLocaleString()}</td>
                     <td>${Math.round(tSpend).toLocaleString()}</td>
                     <td>${tCpc}</td>
-                    <td>${tCpa.toLocaleString()}</td>
+                    ${extraTotalHtml}
                 </tr>
             </tbody>
         </table>`;
@@ -427,7 +472,6 @@
 
     function createRowHtml(d, isChild) {
         let rowClass = isChild ? "child-row" : "parent-row";
-        
         let nameHtml = isChild ? `<span style="color:#aaa; font-size: 12px;">↳ 同上</span>` : `<b>${d.adName}</b>`;
         let toggleLabel = currentMode === 'region' ? "個廣告" : "個受眾";
         let audienceHtml = isChild ? `<span class="child-indent">↳</span> ${d.audience}` : `<span class="toggle-btn" onclick="toggleRow('${d.adName}')">${d.isExpanded ? "▼" : "▶"} ${d.children ? d.children.length : 0} ${toggleLabel}</span>`;
@@ -443,21 +487,50 @@
             <td>${imgHtml}</td>
             <td>${nameHtml}</td>
             <td>${audienceHtml}</td>
-            <td>$${Math.round(d.spend).toLocaleString()}</td>
-            <td>${d.purchases}</td>
-            <td style="color:${d.cpaPur > 1000 ? '#d93025' : 'inherit'}">$${Math.round(d.cpaPur).toLocaleString()}</td>
-            <td>$${Math.round(d.convValue).toLocaleString()}</td>
-            <td style="font-weight:bold; color:${d.roas > 2 ? '#188038' : 'inherit'}">${d.roas.toFixed(2)}</td>
-            <td>${d.reach.toLocaleString()}</td>
-            <td>${d.impressions.toLocaleString()}</td>
-            <td>${d.allClicks.toLocaleString()}</td>
-            <td>$${d.cpc.toFixed(2)}</td>
-            <td>${(d.ctr * 100).toFixed(2)}%</td>
-            <td>${d.carts}</td>
-            <td>$${Math.round(d.costPerCart).toLocaleString()}</td>
-            <td>${d.freq.toFixed(2)}</td>
-        </tr>`;
+            <td>$${Math.round(d.spend).toLocaleString()}</td>`;
+
+        if (currentMode === 'message') {
+            html += `
+                <td>${d.messages}</td>
+                <td style="color:${d.cpaMsg > 500 ? '#d93025' : 'inherit'}">$${Math.round(d.cpaMsg).toLocaleString()}</td>
+                <td>${d.reach.toLocaleString()}</td>
+                <td>${d.impressions.toLocaleString()}</td>
+                <td>${d.allClicks.toLocaleString()}</td>
+                <td>$${d.cpc.toFixed(2)}</td>
+                <td>${(d.ctr * 100).toFixed(2)}%</td>
+                <td>${d.freq.toFixed(2)}</td>
+            `;
+        } 
+        else if (currentMode === 'lead') {
+            html += `
+                <td>${d.leads}</td>
+                <td style="color:${d.cpl > 1000 ? '#d93025' : 'inherit'}">$${Math.round(d.cpl).toLocaleString()}</td>
+                <td>${d.reach.toLocaleString()}</td>
+                <td>${d.impressions.toLocaleString()}</td>
+                <td>${d.allClicks.toLocaleString()}</td>
+                <td>$${d.cpc.toFixed(2)}</td>
+                <td>${(d.ctr * 100).toFixed(2)}%</td>
+                <td>${d.freq.toFixed(2)}</td>
+            `;
+        } 
+        else { // purchase or region
+            html += `
+                <td>${d.purchases}</td>
+                <td style="color:${d.cpaPur > 1000 ? '#d93025' : 'inherit'}">$${Math.round(d.cpaPur).toLocaleString()}</td>
+                <td>$${Math.round(d.convValue).toLocaleString()}</td>
+                <td style="font-weight:bold; color:${d.roas > 2 ? '#188038' : 'inherit'}">${d.roas.toFixed(2)}</td>
+                <td>${d.reach.toLocaleString()}</td>
+                <td>${d.impressions.toLocaleString()}</td>
+                <td>${d.allClicks.toLocaleString()}</td>
+                <td>$${d.cpc.toFixed(2)}</td>
+                <td>${(d.ctr * 100).toFixed(2)}%</td>
+                <td>${d.carts}</td>
+                <td>$${Math.round(d.costPerCart).toLocaleString()}</td>
+                <td>${d.freq.toFixed(2)}</td>
+            `;
+        }
         
+        html += `</tr>`;
         return html;
     }
 
@@ -479,19 +552,50 @@
             ${getHeaderHtml('adName', mainColLabel)}
             ${getHeaderHtml('audience', subColLabel)}
             ${getHeaderHtml('spend', '總花費')}
-            ${getHeaderHtml('purchases', '購買次數')}
-            ${getHeaderHtml('cpaPur', 'CPA')}
-            ${getHeaderHtml('convValue', '轉化價值')}
-            ${getHeaderHtml('roas', 'ROAS')}
-            ${getHeaderHtml('reach', '觸及人數')}
-            ${getHeaderHtml('impressions', '曝光次數')}
-            ${getHeaderHtml('allClicks', '點擊次數')}
-            ${getHeaderHtml('cpc', 'CPC')}
-            ${getHeaderHtml('ctr', 'CTR')}
-            ${getHeaderHtml('carts', '加到購物車次數')}
-            ${getHeaderHtml('costPerCart', '購物車成本')}
-            ${getHeaderHtml('freq', '頻率')}
-        </tr></thead><tbody>`;
+        `;
+
+        if (currentMode === 'message') {
+            html += `
+                ${getHeaderHtml('messages', '訊息數')}
+                ${getHeaderHtml('cpaMsg', 'CPA')}
+                ${getHeaderHtml('reach', '觸及人數')}
+                ${getHeaderHtml('impressions', '曝光次數')}
+                ${getHeaderHtml('allClicks', '點擊次數')}
+                ${getHeaderHtml('cpc', 'CPC')}
+                ${getHeaderHtml('ctr', 'CTR')}
+                ${getHeaderHtml('freq', '頻率')}
+            `;
+        } 
+        else if (currentMode === 'lead') {
+            html += `
+                ${getHeaderHtml('leads', '名單數')}
+                ${getHeaderHtml('cpl', 'CPL')}
+                ${getHeaderHtml('reach', '觸及人數')}
+                ${getHeaderHtml('impressions', '曝光次數')}
+                ${getHeaderHtml('allClicks', '點擊次數')}
+                ${getHeaderHtml('cpc', 'CPC')}
+                ${getHeaderHtml('ctr', 'CTR')}
+                ${getHeaderHtml('freq', '頻率')}
+            `;
+        } 
+        else { // purchase or region
+            html += `
+                ${getHeaderHtml('purchases', '購買次數')}
+                ${getHeaderHtml('cpaPur', 'CPA')}
+                ${getHeaderHtml('convValue', '轉化價值')}
+                ${getHeaderHtml('roas', 'ROAS')}
+                ${getHeaderHtml('reach', '觸及人數')}
+                ${getHeaderHtml('impressions', '曝光次數')}
+                ${getHeaderHtml('allClicks', '點擊次數')}
+                ${getHeaderHtml('cpc', 'CPC')}
+                ${getHeaderHtml('ctr', 'CTR')}
+                ${getHeaderHtml('carts', '加到購物車次數')}
+                ${getHeaderHtml('costPerCart', '購物車成本')}
+                ${getHeaderHtml('freq', '頻率')}
+            `;
+        }
+
+        html += `</tr></thead><tbody>`;
 
         if (filteredData.length === 0) {
             html += `<tr><td colspan="16" class="empty-row">（此頁籤目前沒有資料）找不到相關數據喔！</td></tr>`;
@@ -524,7 +628,16 @@
         let mainColLabel = currentMode === 'region' ? '縣市區域' : '廣告名稱';
         let subColLabel = currentMode === 'region' ? '廣告名稱' : '廣告組合';
 
-        let headers = [mainColLabel, subColLabel, "總花費", "購買次數", "CPA", "轉化價值", "ROAS", "觸及人數", "曝光次數", "點擊次數", "CPC", "CTR", "加到購物車次數", "購物車成本", "頻率"];
+        let headers = [mainColLabel, subColLabel, "總花費"];
+        
+        if (currentMode === 'message') {
+            headers = headers.concat(["訊息數", "CPA", "觸及人數", "曝光次數", "點擊次數", "CPC", "CTR", "頻率"]);
+        } else if (currentMode === 'lead') {
+            headers = headers.concat(["名單數", "CPL", "觸及人數", "曝光次數", "點擊次數", "CPC", "CTR", "頻率"]);
+        } else {
+            headers = headers.concat(["購買次數", "CPA", "轉化價值", "ROAS", "觸及人數", "曝光次數", "點擊次數", "CPC", "CTR", "加到購物車次數", "購物車成本", "頻率"]);
+        }
+        
         ws_data.push(headers);
 
         function addRowToExcel(d, isChild) {
@@ -532,20 +645,16 @@
             let rowData = [
                 isChild ? "  " + d.adName : d.adName, 
                 audName, 
-                Math.round(d.spend),
-                d.purchases, 
-                Math.round(d.cpaPur), 
-                Math.round(d.convValue), 
-                d.roas, 
-                d.reach, 
-                d.impressions, 
-                d.allClicks, 
-                d.cpc, 
-                d.ctr, 
-                d.carts, 
-                Math.round(d.costPerCart), 
-                d.freq
+                Math.round(d.spend)
             ];
+            
+            if (currentMode === 'message') {
+                rowData = rowData.concat([d.messages, Math.round(d.cpaMsg), d.reach, d.impressions, d.allClicks, d.cpc, d.ctr, d.freq]);
+            } else if (currentMode === 'lead') {
+                rowData = rowData.concat([d.leads, Math.round(d.cpl), d.reach, d.impressions, d.allClicks, d.cpc, d.ctr, d.freq]);
+            } else {
+                rowData = rowData.concat([d.purchases, Math.round(d.cpaPur), Math.round(d.convValue), d.roas, d.reach, d.impressions, d.allClicks, d.cpc, d.ctr, d.carts, Math.round(d.costPerCart), d.freq]);
+            }
             ws_data.push(rowData);
         }
 
@@ -563,15 +672,23 @@
                 const cellRef = XLSX.utils.encode_cell({c:C, r:R});
                 if(!ws[cellRef]) continue;
                 
-                if (C === 11) ws[cellRef].z = '0.00%'; 
-                else if (C === 6 || C === 10 || C === 14) ws[cellRef].z = '0.00'; 
+                if (currentMode === 'message' || currentMode === 'lead') {
+                    if (C === 9) ws[cellRef].z = '0.00%';  
+                    else if (C === 8 || C === 10) ws[cellRef].z = '0.00'; 
+                } else {
+                    if (C === 11) ws[cellRef].z = '0.00%'; 
+                    else if (C === 6 || C === 10 || C === 14) ws[cellRef].z = '0.00'; 
+                }
             }
         }
 
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "廣告成效報表");
         
-        let fileName = currentMode === 'region' ? "Meta_區域廣告報表.xlsx" : "Meta_轉換廣告報表.xlsx";
+        let fileName = "Meta_轉換廣告報表.xlsx";
+        if (currentMode === 'message') fileName = "Meta_訊息廣告報表.xlsx";
+        else if (currentMode === 'lead') fileName = "Meta_表單廣告報表.xlsx";
+        else if (currentMode === 'region') fileName = "Meta_區域分析報表.xlsx";
         XLSX.writeFile(wb, fileName);
     }
 </script>
