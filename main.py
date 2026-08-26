@@ -2,13 +2,13 @@ import os
 import json
 import time 
 import uvicorn
+import requests # 🌟 新增：用於發送批次查詢
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from facebook_business.api import FacebookAdsApi
 from facebook_business.adobjects.adaccount import AdAccount
-from facebook_business.adobjects.ad import Ad
 from facebook_business.adobjects.adreportrun import AdReportRun 
 
 load_dotenv()
@@ -44,14 +44,12 @@ def get_ads_data(start_date: str = None, end_date: str = None, account_id: str =
         'actions', 'action_values'
     ]
 
-    # 🌟 每日趨勢：加入 ad_id 與 objective 以便前端對應分頁 (不抓 reach 避免 Timeout)
     fields_daily = [
         'ad_id', 'objective', 'spend', 'impressions', 'clicks', 'actions', 'action_values'
     ]
     
     params_std = {'level': 'ad'}
     params_reg = {'level': 'ad', 'breakdowns': ['region']}
-    # 🌟 改用 level: ad，讓每日數據也能被分類到不同分頁
     params_daily = {'level': 'ad', 'time_increment': 1} 
     
     if start_date and end_date:
@@ -89,41 +87,33 @@ def get_ads_data(start_date: str = None, end_date: str = None, account_id: str =
         insights_reg = job_reg.get_result()
         insights_daily = job_daily.get_result()
         
-        ad_info_cache = {}  
+        # 🌟 極速優化：蒐集所有不重複的 ad_id，一次性批次索取圖片與優化目標
+        all_items = list(insights_std) + list(insights_reg) + list(insights_daily)
+        unique_ad_ids = list({item.get('ad_id') for item in all_items if item.get('ad_id')})
         
-        def get_exact_action_value(actions_list, preferred_types):
-            if not actions_list: return 0.0
-            for p_type in preferred_types:
-                for act in actions_list:
-                    if act.get('action_type') == p_type:
-                        return float(act.get('value', 0))
-            return 0.0
-
-        def parse_insight_item(item):
-            spend = float(item.get('spend', 0))
-            if spend == 0: return None
-
-            ad_id = item.get('ad_id')
-            audience_type = item.get('adset_name', '未標示受眾')
-            region_name = item.get('region', '未知區域') 
-            
-            if ad_id in ad_info_cache:
-                image_url = ad_info_cache[ad_id]['image']
-                opt_goal = ad_info_cache[ad_id]['opt_goal']
-            else:
-                image_url = ""
-                opt_goal = ""
-                if ad_id:
-                    try:
-                        ad = Ad(ad_id)
-                        ad_details = ad.api_get(fields=['adset{optimization_goal}'])
-                        if 'adset' in ad_details and 'optimization_goal' in ad_details['adset']:
-                            opt_goal = ad_details['adset']['optimization_goal']
-
-                        creatives = ad.get_ad_creatives(fields=[
-                            'thumbnail_url', 'image_url', 'object_story_spec',
-                            'effective_object_story_spec', 'asset_feed_spec'
-                        ])
+        ad_info_cache = {}
+        chunk_size = 50 # FB API 限制每次最多查 50 筆 ID
+        
+        for i in range(0, len(unique_ad_ids), chunk_size):
+            chunk = unique_ad_ids[i:i+chunk_size]
+            try:
+                url = "https://graph.facebook.com/v18.0/"
+                params = {
+                    'ids': ','.join(chunk),
+                    'fields': 'adset{optimization_goal},adcreatives{thumbnail_url,image_url,object_story_spec,effective_object_story_spec,asset_feed_spec}',
+                    'access_token': ACCESS_TOKEN
+                }
+                res = requests.get(url, params=params)
+                res_data = res.json()
+                
+                for ad_id, ad_data in res_data.items():
+                    opt_goal = ""
+                    if 'adset' in ad_data and 'optimization_goal' in ad_data['adset']:
+                        opt_goal = ad_data['adset']['optimization_goal']
+                        
+                    image_url = ""
+                    if 'adcreatives' in ad_data and 'data' in ad_data['adcreatives']:
+                        creatives = ad_data['adcreatives']['data']
                         if creatives:
                             creative = creatives[0]
                             image_url = creative.get('thumbnail_url') or creative.get('image_url', '')
@@ -143,9 +133,30 @@ def get_ads_data(start_date: str = None, end_date: str = None, account_id: str =
                                     image_url = asset['images'][0].get('url', '')
                                 elif 'videos' in asset and len(asset['videos']) > 0:
                                     image_url = asset['videos'][0].get('thumbnail_url', '')
-                    except Exception:
-                        pass 
-                ad_info_cache[ad_id] = {'image': image_url, 'opt_goal': opt_goal}
+                    
+                    ad_info_cache[ad_id] = {'image': image_url, 'opt_goal': opt_goal}
+            except Exception as e:
+                print(f"Error fetching bulk ad info: {e}")
+
+        def get_exact_action_value(actions_list, preferred_types):
+            if not actions_list: return 0.0
+            for p_type in preferred_types:
+                for act in actions_list:
+                    if act.get('action_type') == p_type:
+                        return float(act.get('value', 0))
+            return 0.0
+
+        def parse_insight_item(item):
+            spend = float(item.get('spend', 0))
+            if spend == 0: return None
+
+            ad_id = item.get('ad_id')
+            audience_type = item.get('adset_name', '未標示受眾')
+            region_name = item.get('region', '未知區域') 
+            
+            # 🌟 直接從已快取的字典中讀取，秒回結果，不再跑迴圈等待網路
+            image_url = ad_info_cache.get(ad_id, {}).get('image', '')
+            opt_goal = ad_info_cache.get(ad_id, {}).get('opt_goal', '')
 
             purchases = int(get_exact_action_value(item.get('actions', []), ['purchase', 'omni_purchase', 'offsite_conversion.fb_pixel_purchase']))
             carts = int(get_exact_action_value(item.get('actions', []), ['add_to_cart', 'omni_add_to_cart', 'offsite_conversion.fb_pixel_add_to_cart']))
@@ -196,7 +207,6 @@ def get_ads_data(start_date: str = None, end_date: str = None, account_id: str =
             ])
             comments = get_exact_action_value(item.get('actions', []), ['comment'])
             
-            # 🌟 回傳詳細屬性以便前端判斷分類
             return {
                 "date": item.get('date_start', ''),
                 "objective": item.get('objective', ''),
