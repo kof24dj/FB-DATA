@@ -83,12 +83,18 @@ def get_ads_data(start_date: str = None, end_date: str = None, account_id: str =
                 break
             time.sleep(2) 
             
-        insights_std = job_std.get_result()
-        insights_reg = job_reg.get_result()
-        insights_daily = job_daily.get_result()
+# (前方維持不變...)
+            if status_std == "Job Completed" and status_reg == "Job Completed" and status_daily == "Job Completed":
+                break
+            time.sleep(2) 
+            
+        # 🌟 修正：直接將 Cursor 轉換並儲存為 List，避免資料被消耗掉
+        std_list = list(job_std.get_result()) if job_std.get_result() else []
+        reg_list = list(job_reg.get_result()) if job_reg.get_result() else []
+        daily_list_raw = list(job_daily.get_result()) if job_daily.get_result() else []
         
-        # 🌟 極速優化：蒐集所有不重複的 ad_id，一次性批次索取圖片與優化目標
-        all_items = list(insights_std) + list(insights_reg) + list(insights_daily)
+        # 🌟 蒐集所有不重複的 ad_id，一次性批次索取圖片與優化目標
+        all_items = std_list + reg_list + daily_list_raw
         unique_ad_ids = list({item.get('ad_id') for item in all_items if item.get('ad_id')})
         
         ad_info_cache = {}
@@ -154,7 +160,6 @@ def get_ads_data(start_date: str = None, end_date: str = None, account_id: str =
             audience_type = item.get('adset_name', '未標示受眾')
             region_name = item.get('region', '未知區域') 
             
-            # 🌟 直接從已快取的字典中讀取，秒回結果，不再跑迴圈等待網路
             image_url = ad_info_cache.get(ad_id, {}).get('image', '')
             opt_goal = ad_info_cache.get(ad_id, {}).get('opt_goal', '')
 
@@ -221,22 +226,19 @@ def get_ads_data(start_date: str = None, end_date: str = None, account_id: str =
             }
 
         data_list = []
-        if insights_std:
-            for item in insights_std:
-                parsed = parse_insight_item(item)
-                if parsed: data_list.append(parsed)
+        for item in std_list:
+            parsed = parse_insight_item(item)
+            if parsed: data_list.append(parsed)
                 
         region_list = []
-        if insights_reg:
-            for item in insights_reg:
-                parsed = parse_insight_item(item)
-                if parsed: region_list.append(parsed)
+        for item in reg_list:
+            parsed = parse_insight_item(item)
+            if parsed: region_list.append(parsed)
 
         daily_list = []
-        if insights_daily:
-            for item in insights_daily:
-                parsed = parse_daily_item(item)
-                if parsed: daily_list.append(parsed)
+        for item in daily_list_raw:
+            parsed = parse_daily_item(item)
+            if parsed: daily_list.append(parsed)
 
         return {"status": "success", "data": data_list, "region_data": region_list, "daily_data": daily_list}
         
