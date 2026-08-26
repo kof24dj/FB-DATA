@@ -43,49 +43,66 @@ def get_ads_data(start_date: str = None, end_date: str = None, account_id: str =
         'spend', 'impressions', 'reach', 'clicks', 'outbound_clicks', 
         'actions', 'action_values'
     ]
+
+    fields_daily = [
+        'spend', 'impressions', 'reach', 'clicks', 'actions', 'action_values'
+    ]
     
-    # 🌟 兵分兩路：參數 A (抓購買轉換用)、參數 B (抓縣市區域用)
+    # 🌟 兵分三路：標準、區域、每日趨勢
     params_std = {'level': 'ad'}
     params_reg = {'level': 'ad', 'breakdowns': ['region']}
+    params_daily = {'level': 'account', 'time_increment': 1} # 抓取每日帳號總和
     
     if start_date and end_date:
         time_range = json.dumps({'since': start_date, 'until': end_date})
         params_std['time_range'] = time_range
         params_reg['time_range'] = time_range
+        params_daily['time_range'] = time_range
     else:
         params_std['date_preset'] = 'last_7d'
         params_reg['date_preset'] = 'last_7d'
+        params_daily['date_preset'] = 'last_7d'
     
     try:
-        # 🌟 平行發起兩個 Async 任務
+        # 🌟 平行發起三個 Async 任務
         job_std = account.get_insights(fields=fields, params=params_std, is_async=True)
         job_reg = account.get_insights(fields=fields, params=params_reg, is_async=True)
+        job_daily = account.get_insights(fields=fields_daily, params=params_daily, is_async=True)
         
-        # 🌟 同時等待兩個任務完成
+        # 🌟 同時等待任務完成
         while True:
             job_std.api_get()
             job_reg.api_get()
+            job_daily.api_get()
             
-            std_status = job_std.get(AdReportRun.Field.async_status)
-            reg_status = job_reg.get(AdReportRun.Field.async_status)
+            status_std = job_std.get(AdReportRun.Field.async_status)
+            status_reg = job_reg.get(AdReportRun.Field.async_status)
+            status_daily = job_daily.get(AdReportRun.Field.async_status)
             
-            if std_status == "Job Failed" or reg_status == "Job Failed":
+            if "Job Failed" in [status_std, status_reg, status_daily]:
                 return {"status": "error", "message": "Meta 伺服器處理報表失敗，請稍後再試。"}
                 
-            if std_status == "Job Completed" and reg_status == "Job Completed":
+            if status_std == "Job Completed" and status_reg == "Job Completed" and status_daily == "Job Completed":
                 break
             time.sleep(2) 
             
         insights_std = job_std.get_result()
         insights_reg = job_reg.get_result()
+        insights_daily = job_daily.get_result()
         
         ad_info_cache = {}  
         
-        # 🌟 建立一個統一的資料整理函數
+        def get_exact_action_value(actions_list, preferred_types):
+            if not actions_list: return 0.0
+            for p_type in preferred_types:
+                for act in actions_list:
+                    if act.get('action_type') == p_type:
+                        return float(act.get('value', 0))
+            return 0.0
+
         def parse_insight_item(item):
             spend = float(item.get('spend', 0))
-            if spend == 0:
-                return None
+            if spend == 0: return None
 
             ad_id = item.get('ad_id')
             audience_type = item.get('adset_name', '未標示受眾')
@@ -131,33 +148,15 @@ def get_ads_data(start_date: str = None, end_date: str = None, account_id: str =
                         pass 
                 ad_info_cache[ad_id] = {'image': image_url, 'opt_goal': opt_goal}
 
-            def get_exact_action_value(actions_list, preferred_types):
-                if not actions_list: return 0.0
-                for p_type in preferred_types:
-                    for act in actions_list:
-                        if act.get('action_type') == p_type:
-                            return float(act.get('value', 0))
-                return 0.0
-
             purchases = int(get_exact_action_value(item.get('actions', []), ['purchase', 'omni_purchase', 'offsite_conversion.fb_pixel_purchase']))
             carts = int(get_exact_action_value(item.get('actions', []), ['add_to_cart', 'omni_add_to_cart', 'offsite_conversion.fb_pixel_add_to_cart']))
             conv_value = get_exact_action_value(item.get('action_values', []), ['purchase', 'omni_purchase', 'offsite_conversion.fb_pixel_purchase'])
             leads = int(get_exact_action_value(item.get('actions', []), ['onsite_conversion.lead_grouped']))
             
-            msg_starts = get_exact_action_value(item.get('actions', []), [
-                'onsite_conversion.messaging_conversation_started_7d', 
-                'messaging_conversation_started_7d',
-                'onsite_conversion.messaging_first_reply'
-            ])
-            comments = get_exact_action_value(item.get('actions', []), ['comment'])
-            messages = int(msg_starts + comments)
-
             return {
                 "adName": item.get('ad_name', '未命名廣告'),
                 "adsetName": audience_type,
                 "region": region_name, 
-                "objective": item.get('objective', ''),
-                "optimizationGoal": opt_goal,
                 "spend": spend,
                 "impressions": int(item.get('impressions', 0)),
                 "reach": int(item.get('reach', 0)),
@@ -166,11 +165,22 @@ def get_ads_data(start_date: str = None, end_date: str = None, account_id: str =
                 "convValue": conv_value,
                 "carts": carts,
                 "leads": leads,
-                "messages": messages,
                 "image": image_url
             }
 
-        # 🌟 分別解析兩份資料
+        # 解析每日資料
+        def parse_daily_item(item):
+            spend = float(item.get('spend', 0))
+            if spend == 0: return None
+            purchases = int(get_exact_action_value(item.get('actions', []), ['purchase', 'omni_purchase', 'offsite_conversion.fb_pixel_purchase']))
+            return {
+                "date": item.get('date_start', ''),
+                "spend": spend,
+                "impressions": int(item.get('impressions', 0)),
+                "clicks": int(item.get('clicks', 0)),
+                "purchases": purchases
+            }
+
         data_list = []
         if insights_std:
             for item in insights_std:
@@ -183,8 +193,13 @@ def get_ads_data(start_date: str = None, end_date: str = None, account_id: str =
                 parsed = parse_insight_item(item)
                 if parsed: region_list.append(parsed)
 
-        # 🌟 回傳兩組數據給前端
-        return {"status": "success", "data": data_list, "region_data": region_list}
+        daily_list = []
+        if insights_daily:
+            for item in insights_daily:
+                parsed = parse_daily_item(item)
+                if parsed: daily_list.append(parsed)
+
+        return {"status": "success", "data": data_list, "region_data": region_list, "daily_data": daily_list}
         
     except Exception as e:
         return {"status": "error", "message": str(e)}
