@@ -104,7 +104,7 @@
         <div class="kpi-container" id="kpi-board"></div>
 
         <!-- 🌟 每日成效趨勢表 -->
-        <div class="section-title" id="daily-table-title">📅 帳號每日趨勢 (總覽)</div>
+        <div class="section-title" id="daily-table-title">📅 帳號每日趨勢</div>
         <div class="table-wrapper" id="daily-table-container"></div>
 
         <!-- 🌟 廣告/區域詳細資料 -->
@@ -134,7 +134,10 @@
     }
 
     let globalCategorizedData = { purchase: [], lead: [], message: [], region: [] };
-    let globalDailyData = [];
+    
+    // 🌟 新增：分別儲存不同分頁對應的每日趨勢資料
+    let globalDailyCategorized = { purchase: [], lead: [], message: [], region: [] }; 
+    
     let currentData = [];
     let currentSortCol = 'spend'; 
     let isAscending = false;
@@ -162,8 +165,8 @@
         isAscending = false;
         isAllExpanded = false;
         
-        // 🌟 切換分頁時，同步更新 KPI 與每日趨勢的欄位
-        renderKPIAndDaily(globalDailyData, currentMode);
+        // 🌟 切換分頁時，同步更新「只屬於該分頁」的 KPI 與每日趨勢
+        renderKPIAndDaily(globalDailyCategorized[currentMode] || [], currentMode);
         
         if (currentData.length > 0) {
             sortTable('spend'); 
@@ -248,7 +251,7 @@
     function processApiData(standardData, regionData, dailyData) {
         let parentSummaries = { purchase: {}, lead: {}, message: {}, region: {} };
 
-        // 🌟 分派標準資料到對應的目標分頁 (Purchase, Lead, Message)
+        // --- 1. 處理下方詳細報表資料 ---
         standardData.forEach(row => {
             let rawAdName = String(row.adName || '').replace(/複製|複本| |-|─/g, '');
             if (!rawAdName) return;
@@ -271,7 +274,6 @@
             addMetrics(cNode, row);
         });
 
-        // 🌟 處理區域資料
         regionData.forEach(row => {
             let rawAdName = String(row.adName || '').replace(/複製|複本| |-|─/g, '');
             if (!rawAdName) return;
@@ -303,9 +305,39 @@
             });
         });
 
-        globalDailyData = dailyData.sort((a, b) => a.date.localeCompare(b.date));
-        
-        // 渲染畫面
+        // 🌟 2. 處理上方每日趨勢資料 (依據分頁分發)
+        let tempDaily = { purchase: {}, lead: {}, message: {}, region: {} };
+
+        dailyData.forEach(row => {
+            let cat = determineTab(row);
+            let d = row.date;
+
+            function initDateObj(category, dateStr) {
+                if (!tempDaily[category][dateStr]) {
+                    tempDaily[category][dateStr] = {
+                        date: dateStr, spend: 0, impressions: 0, clicks: 0,
+                        purchases: 0, convValue: 0, leads: 0, messages: 0
+                    };
+                }
+            }
+
+            // 分發給對應的廣告目標分頁
+            initDateObj(cat, d);
+            let t = tempDaily[cat][d];
+            t.spend += row.spend; t.impressions += row.impressions; t.clicks += row.clicks;
+            t.purchases += row.purchases; t.convValue += row.convValue; t.leads += row.leads; t.messages += row.messages;
+
+            // 分發給區域分頁 (包含所有廣告的總和)
+            initDateObj('region', d);
+            let r = tempDaily['region'][d];
+            r.spend += row.spend; r.impressions += row.impressions; r.clicks += row.clicks;
+            r.purchases += row.purchases; r.convValue += row.convValue; r.leads += row.leads; r.messages += row.messages;
+        });
+
+        ['purchase', 'lead', 'message', 'region'].forEach(cat => {
+            globalDailyCategorized[cat] = Object.values(tempDaily[cat]).sort((a, b) => a.date.localeCompare(b.date));
+        });
+
         document.getElementById('actionContainer').style.display = 'block';
         switchTab(currentMode); 
     }
@@ -321,55 +353,58 @@
         d.cpaMsg = d.messages > 0 ? (d.spend / d.messages) : 0;
     }
 
-    // 🌟 動態渲染 KPI 與每日趨勢 (依據目前分頁)
     function renderKPIAndDaily(dailyData, mode) {
         let tImp = 0, tClick = 0, tSpend = 0;
         let tPur = 0, tConvVal = 0, tLead = 0, tMsg = 0;
         
         let dailyRowsHtml = '';
-        dailyData.forEach(d => {
-            tImp += d.impressions;
-            tClick += d.clicks;
-            tSpend += d.spend;
-            tPur += d.purchases;
-            tConvVal += d.convValue;
-            tLead += d.leads;
-            tMsg += d.messages;
-            
-            let ctr = d.impressions > 0 ? (d.clicks / d.impressions * 100).toFixed(2) + '%' : '0.00%';
-            let cpc = d.clicks > 0 ? (d.spend / d.clicks).toFixed(2) : '0.00';
-            
-            let dateObj = new Date(d.date);
-            let dateStr = `${dateObj.getFullYear()}年${dateObj.getMonth()+1}月${dateObj.getDate()}日`;
+        
+        // 🌟 如果該分類沒有數據，直接印出空的資訊
+        if (dailyData.length === 0) {
+            dailyRowsHtml = `<tr><td colspan="8" class="empty-row">此區間沒有任何花費與成效</td></tr>`;
+        } else {
+            dailyData.forEach(d => {
+                tImp += d.impressions;
+                tClick += d.clicks;
+                tSpend += d.spend;
+                tPur += d.purchases;
+                tConvVal += d.convValue;
+                tLead += d.leads;
+                tMsg += d.messages;
+                
+                let ctr = d.impressions > 0 ? (d.clicks / d.impressions * 100).toFixed(2) + '%' : '0.00%';
+                let cpc = d.clicks > 0 ? (d.spend / d.clicks).toFixed(2) : '0.00';
+                
+                let dateObj = new Date(d.date);
+                let dateStr = `${dateObj.getFullYear()}年${dateObj.getMonth()+1}月${dateObj.getDate()}日`;
 
-            let rowHtml = `<tr>
-                <td>${dateStr}</td>
-                <td>${d.impressions.toLocaleString()}</td>
-                <td>${d.clicks.toLocaleString()}</td>
-                <td>${ctr}</td>
-                <td>${Math.round(d.spend).toLocaleString()}</td>
-                <td>${cpc}</td>`;
+                let rowHtml = `<tr>
+                    <td>${dateStr}</td>
+                    <td>${d.impressions.toLocaleString()}</td>
+                    <td>${d.clicks.toLocaleString()}</td>
+                    <td>${ctr}</td>
+                    <td>${Math.round(d.spend).toLocaleString()}</td>
+                    <td>${cpc}</td>`;
 
-            // 依據分頁填入不同的動態欄位
-            if (mode === 'lead') {
-                let cpl = d.leads > 0 ? Math.round(d.spend / d.leads) : '0';
-                rowHtml += `<td>${d.leads}</td><td>${cpl}</td>`;
-            } else if (mode === 'message') {
-                let cpaMsg = d.messages > 0 ? Math.round(d.spend / d.messages) : '0';
-                rowHtml += `<td>${d.messages}</td><td>${cpaMsg}</td>`;
-            } else { // purchase 或是 region 預設顯示購買
-                let cpaPur = d.purchases > 0 ? Math.round(d.spend / d.purchases) : '0';
-                let roas = d.spend > 0 ? (d.convValue / d.spend).toFixed(2) : '0.00';
-                rowHtml += `<td>${d.purchases}</td><td>${cpaPur}</td><td>${roas}</td>`;
-            }
-            rowHtml += `</tr>`;
-            dailyRowsHtml += rowHtml;
-        });
+                if (mode === 'lead') {
+                    let cpl = d.leads > 0 ? Math.round(d.spend / d.leads) : '0';
+                    rowHtml += `<td>${d.leads}</td><td>${cpl}</td>`;
+                } else if (mode === 'message') {
+                    let cpaMsg = d.messages > 0 ? Math.round(d.spend / d.messages) : '0';
+                    rowHtml += `<td>${d.messages}</td><td>${cpaMsg}</td>`;
+                } else {
+                    let cpaPur = d.purchases > 0 ? Math.round(d.spend / d.purchases) : '0';
+                    let roas = d.spend > 0 ? (d.convValue / d.spend).toFixed(2) : '0.00';
+                    rowHtml += `<td>${d.purchases}</td><td>${cpaPur}</td><td>${roas}</td>`;
+                }
+                rowHtml += `</tr>`;
+                dailyRowsHtml += rowHtml;
+            });
+        }
 
         let tCtr = tImp > 0 ? (tClick / tImp * 100).toFixed(2) + '%' : '0.00%';
         let tCpc = tClick > 0 ? (tSpend / tClick).toFixed(2) : '0.00';
 
-        // 產生 KPI 卡片
         let kpiHtml = `
             <div class="kpi-card"><div class="kpi-title">Impression</div><div class="kpi-value">${tImp.toLocaleString()}</div></div>
             <div class="kpi-card"><div class="kpi-title">Clicks</div><div class="kpi-value">${tClick.toLocaleString()}</div></div>
@@ -387,7 +422,7 @@
                         <div class="kpi-card"><div class="kpi-title">CPL</div><div class="kpi-value">${tCpl.toLocaleString()}</div></div>`;
             theadExtra = `<th>Leads</th><th>CPL</th>`;
             extraTotalHtml = `<td>${tLead.toLocaleString()}</td><td>${tCpl.toLocaleString()}</td>`;
-            document.getElementById('daily-table-title').innerText = "📅 帳號每日趨勢 (名單成效)";
+            document.getElementById('daily-table-title').innerText = "📅 每日趨勢 (表單名單)";
             
         } else if (mode === 'message') {
             let tCpaMsg = tMsg > 0 ? Math.round(tSpend / tMsg) : '0';
@@ -395,8 +430,17 @@
                         <div class="kpi-card"><div class="kpi-title">Msg CPA</div><div class="kpi-value">${tCpaMsg.toLocaleString()}</div></div>`;
             theadExtra = `<th>Messages</th><th>CPA</th>`;
             extraTotalHtml = `<td>${tMsg.toLocaleString()}</td><td>${tCpaMsg.toLocaleString()}</td>`;
-            document.getElementById('daily-table-title').innerText = "📅 帳號每日趨勢 (訊息成效)";
+            document.getElementById('daily-table-title').innerText = "📅 每日趨勢 (訊息互動)";
 
+        } else if (mode === 'purchase') {
+            let tCpaPur = tPur > 0 ? Math.round(tSpend / tPur) : '0';
+            let tRoas = tSpend > 0 ? (tConvVal / tSpend).toFixed(2) : '0.00';
+            kpiHtml += `<div class="kpi-card"><div class="kpi-title">Conversions (購買)</div><div class="kpi-value">${tPur.toLocaleString()}</div></div>
+                        <div class="kpi-card"><div class="kpi-title">CPA</div><div class="kpi-value">${tCpaPur.toLocaleString()}</div></div>
+                        <div class="kpi-card"><div class="kpi-title">ROAS</div><div class="kpi-value">${tRoas}</div></div>`;
+            theadExtra = `<th>Conversions</th><th>CPA</th><th>ROAS</th>`;
+            extraTotalHtml = `<td>${tPur.toLocaleString()}</td><td>${tCpaPur.toLocaleString()}</td><td>${tRoas}</td>`;
+            document.getElementById('daily-table-title').innerText = "📅 每日趨勢 (購買轉換)";
         } else {
             let tCpaPur = tPur > 0 ? Math.round(tSpend / tPur) : '0';
             let tRoas = tSpend > 0 ? (tConvVal / tSpend).toFixed(2) : '0.00';
@@ -405,7 +449,7 @@
                         <div class="kpi-card"><div class="kpi-title">ROAS</div><div class="kpi-value">${tRoas}</div></div>`;
             theadExtra = `<th>Conversions</th><th>CPA</th><th>ROAS</th>`;
             extraTotalHtml = `<td>${tPur.toLocaleString()}</td><td>${tCpaPur.toLocaleString()}</td><td>${tRoas}</td>`;
-            document.getElementById('daily-table-title').innerText = "📅 帳號每日趨勢 (轉換成效)";
+            document.getElementById('daily-table-title').innerText = "📅 每日趨勢 (區域成效總覽)";
         }
 
         document.getElementById('kpi-board').innerHTML = kpiHtml;
@@ -513,7 +557,7 @@
                 <td>${d.freq.toFixed(2)}</td>
             `;
         } 
-        else { // purchase or region
+        else { 
             html += `
                 <td>${d.purchases}</td>
                 <td style="color:${d.cpaPur > 1000 ? '#d93025' : 'inherit'}">$${Math.round(d.cpaPur).toLocaleString()}</td>
@@ -578,7 +622,7 @@
                 ${getHeaderHtml('freq', '頻率')}
             `;
         } 
-        else { // purchase or region
+        else {
             html += `
                 ${getHeaderHtml('purchases', '購買次數')}
                 ${getHeaderHtml('cpaPur', 'CPA')}
