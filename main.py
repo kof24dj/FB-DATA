@@ -48,10 +48,9 @@ def get_ads_data(start_date: str = None, end_date: str = None, account_id: str =
         'spend', 'impressions', 'reach', 'clicks', 'actions', 'action_values'
     ]
     
-    # 🌟 兵分三路：標準、區域、每日趨勢
     params_std = {'level': 'ad'}
     params_reg = {'level': 'ad', 'breakdowns': ['region']}
-    params_daily = {'level': 'account', 'time_increment': 1} # 抓取每日帳號總和
+    params_daily = {'level': 'account', 'time_increment': 1} 
     
     if start_date and end_date:
         time_range = json.dumps({'since': start_date, 'until': end_date})
@@ -64,12 +63,10 @@ def get_ads_data(start_date: str = None, end_date: str = None, account_id: str =
         params_daily['date_preset'] = 'last_7d'
     
     try:
-        # 🌟 平行發起三個 Async 任務
         job_std = account.get_insights(fields=fields, params=params_std, is_async=True)
         job_reg = account.get_insights(fields=fields, params=params_reg, is_async=True)
         job_daily = account.get_insights(fields=fields_daily, params=params_daily, is_async=True)
         
-        # 🌟 同時等待任務完成
         while True:
             job_std.api_get()
             job_reg.api_get()
@@ -151,12 +148,22 @@ def get_ads_data(start_date: str = None, end_date: str = None, account_id: str =
             purchases = int(get_exact_action_value(item.get('actions', []), ['purchase', 'omni_purchase', 'offsite_conversion.fb_pixel_purchase']))
             carts = int(get_exact_action_value(item.get('actions', []), ['add_to_cart', 'omni_add_to_cart', 'offsite_conversion.fb_pixel_add_to_cart']))
             conv_value = get_exact_action_value(item.get('action_values', []), ['purchase', 'omni_purchase', 'offsite_conversion.fb_pixel_purchase'])
-            leads = int(get_exact_action_value(item.get('actions', []), ['onsite_conversion.lead_grouped']))
+            leads = int(get_exact_action_value(item.get('actions', []), ['lead', 'onsite_conversion.lead_grouped']))
             
+            msg_starts = get_exact_action_value(item.get('actions', []), [
+                'onsite_conversion.messaging_conversation_started_7d', 
+                'messaging_conversation_started_7d',
+                'onsite_conversion.messaging_first_reply'
+            ])
+            comments = get_exact_action_value(item.get('actions', []), ['comment'])
+            messages = int(msg_starts + comments)
+
             return {
                 "adName": item.get('ad_name', '未命名廣告'),
                 "adsetName": audience_type,
                 "region": region_name, 
+                "objective": item.get('objective', ''),
+                "optimizationGoal": opt_goal,
                 "spend": spend,
                 "impressions": int(item.get('impressions', 0)),
                 "reach": int(item.get('reach', 0)),
@@ -165,20 +172,34 @@ def get_ads_data(start_date: str = None, end_date: str = None, account_id: str =
                 "convValue": conv_value,
                 "carts": carts,
                 "leads": leads,
+                "messages": messages,
                 "image": image_url
             }
 
-        # 解析每日資料
         def parse_daily_item(item):
             spend = float(item.get('spend', 0))
             if spend == 0: return None
+            
             purchases = int(get_exact_action_value(item.get('actions', []), ['purchase', 'omni_purchase', 'offsite_conversion.fb_pixel_purchase']))
+            conv_value = get_exact_action_value(item.get('action_values', []), ['purchase', 'omni_purchase', 'offsite_conversion.fb_pixel_purchase'])
+            leads = int(get_exact_action_value(item.get('actions', []), ['lead', 'onsite_conversion.lead_grouped']))
+            
+            msg_starts = get_exact_action_value(item.get('actions', []), [
+                'onsite_conversion.messaging_conversation_started_7d', 
+                'messaging_conversation_started_7d',
+                'onsite_conversion.messaging_first_reply'
+            ])
+            comments = get_exact_action_value(item.get('actions', []), ['comment'])
+            
             return {
                 "date": item.get('date_start', ''),
                 "spend": spend,
                 "impressions": int(item.get('impressions', 0)),
                 "clicks": int(item.get('clicks', 0)),
-                "purchases": purchases
+                "purchases": purchases,
+                "convValue": conv_value,
+                "leads": leads,
+                "messages": int(msg_starts + comments)
             }
 
         data_list = []
