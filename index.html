@@ -3,56 +3,70 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>全能廣告成效儀表板 (雲端防護版)</title>
+    <title>全能廣告成效儀表板</title>
     <meta name="referrer" content="no-referrer">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; color: #333; background-color: #f4f7f6; }
-        .container { background-color: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
-        h2 { color: #2c3e50; text-align: center; }
+        /* 🌟 根據參考圖設計的現代化簡約樣式 */
+        body { font-family: 'Roboto', 'Segoe UI', Arial, sans-serif; padding: 20px; color: #333; background-color: #f1f3f4; margin: 0; }
+        .container { max-width: 1400px; margin: auto; }
+        h2 { color: #202124; text-align: center; margin-bottom: 30px; font-weight: 500;}
         
-        .upload-section { margin-bottom: 20px; padding: 20px; background-color: #f1f8ff; border-radius: 8px; border: 1px solid #c8e1ff; display: flex; justify-content: center; gap: 15px; align-items: center; flex-wrap: wrap;}
-        .upload-section input[type="date"], .upload-section select { padding: 8px; border: 1px solid #ccc; border-radius: 5px; font-size: 14px; }
-        .btn-fetch { background-color: #4CAF50; color: white; padding: 10px 25px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight: bold; }
-        .btn-fetch:hover { background-color: #45a049; }
+        .upload-section { background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; justify-content: center; gap: 15px; align-items: center; flex-wrap: wrap; margin-bottom: 25px; border: 1px solid #e0e0e0; }
+        .upload-section input[type="date"], .upload-section select { padding: 8px 12px; border: 1px solid #dadce0; border-radius: 4px; font-size: 14px; outline: none; }
+        .upload-section input[type="date"]:focus, .upload-section select:focus { border-color: #1a73e8; }
+        .btn-fetch { background-color: #1a73e8; color: white; padding: 10px 24px; border: none; border-radius: 4px; cursor: pointer; font-size: 15px; font-weight: 500; transition: background 0.2s; }
+        .btn-fetch:hover { background-color: #1557b0; }
         
-        .tabs { display: flex; justify-content: center; margin-bottom: 15px; gap: 10px; }
-        .tab-btn { padding: 12px 24px; font-size: 16px; font-weight: bold; cursor: pointer; border: none; border-radius: 5px; background-color: #e0e0e0; color: #555; transition: 0.3s; }
-        .tab-btn.active { background-color: #0078D7; color: white; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-        .tab-btn:hover:not(.active) { background-color: #d5d5d5; }
+        /* 🌟 總成效 KPI 卡片區塊 */
+        .kpi-container { display: flex; gap: 15px; justify-content: space-between; margin-bottom: 25px; flex-wrap: wrap; }
+        .kpi-card { background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px 20px; flex: 1; min-width: 120px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .kpi-title { font-size: 12px; color: #5f6368; margin-bottom: 6px; font-weight: 500; text-transform: uppercase; }
+        .kpi-value { font-size: 24px; font-weight: normal; color: #202124; }
         
-        .loading { text-align: center; color: #0078D7; font-weight: bold; margin-bottom: 20px; display: none; }
-        .error-msg { color: #c62828; font-weight: bold; text-align: center; margin-bottom: 10px; }
+        .section-title { font-size: 16px; font-weight: bold; margin-bottom: 15px; color: #202124; margin-top: 30px; }
+
+        .tabs { display: flex; justify-content: flex-start; margin-bottom: 15px; gap: 8px; }
+        .tab-btn { padding: 10px 20px; font-size: 14px; font-weight: 500; cursor: pointer; border: 1px solid #dadce0; border-radius: 20px; background-color: white; color: #5f6368; transition: 0.2s; }
+        .tab-btn.active { background-color: #e8f0fe; color: #1a73e8; border-color: #e8f0fe; }
+        .tab-btn:hover:not(.active) { background-color: #f8f9fa; }
+        
+        .loading { text-align: center; color: #1a73e8; font-weight: 500; margin-bottom: 20px; display: none; }
+        .error-msg { color: #d93025; font-weight: 500; text-align: center; margin-bottom: 10px; }
         
         .controls-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 15px; gap: 15px; }
         .controls-left { display: flex; gap: 10px; align-items: center; }
-        .search-input { padding: 10px 15px; font-size: 16px; border: 1px solid #ccc; border-radius: 5px; width: 300px; }
+        .search-input { padding: 8px 12px; font-size: 14px; border: 1px solid #dadce0; border-radius: 4px; width: 250px; outline: none; }
+        .search-input:focus { border-color: #1a73e8; }
         
-        .btn-action { background-color: #0078D7; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: bold; }
-        .btn-action:hover { background-color: #005A9E; }
-        .btn-toggle-all { background-color: #ff9800; }
-        .btn-toggle-all:hover { background-color: #e68a00; }
-        .btn-export { background-color: #107c41; }
-        .btn-export:hover { background-color: #0b5a2f; }
+        .btn-action { background-color: white; color: #3c4043; padding: 8px 16px; border: 1px solid #dadce0; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500; transition: 0.2s; }
+        .btn-action:hover { background-color: #f8f9fa; }
+        .btn-export { color: #188038; border-color: #188038; }
+        .btn-export:hover { background-color: #e6f4ea; }
 
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        th, td { border: 1px solid #ddd; padding: 10px; text-align: right; vertical-align: middle; }
-        th { background-color: #4CAF50; color: white; text-align: center; cursor: pointer; user-select: none; }
-        th:hover { background-color: #45a049; }
+        /* 🌟 表格樣式 (符合 Looker Studio 風格的藍色表頭) */
+        .table-wrapper { background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; margin-bottom: 30px; border: 1px solid #e0e0e0; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th, td { padding: 12px 15px; text-align: right; vertical-align: middle; border-bottom: 1px solid #f1f3f4; }
+        th { background-color: #1a73e8; color: white; cursor: pointer; user-select: none; font-weight: 500; border-bottom: none; }
+        th:hover { background-color: #1557b0; }
         
         td:nth-child(1), td:nth-child(2), td:nth-child(3) { text-align: left; }
-        tr.parent-row { background-color: #ffffff; font-weight: bold; }
-        tr.parent-row:hover { background-color: #f1f1f1; }
-        tr.child-row { background-color: #f0f8ff; color: #444; }
-        tr.child-row:hover { background-color: #e1f0fa; }
+        th:nth-child(1), th:nth-child(2), th:nth-child(3) { text-align: left; }
         
-        .toggle-btn { background-color: #e3f2fd; color: #0078D7; padding: 6px 12px; border-radius: 5px; cursor: pointer; display: inline-block; font-size: 13px; border: 1px solid #bbdefb; transition: 0.2s; }
-        .toggle-btn:hover { background-color: #bbdefb; }
-        .child-indent { display: inline-block; width: 15px; color: #999; text-align: right; margin-right: 5px; }
+        tr.parent-row { font-weight: 500; color: #202124; }
+        tr.parent-row:hover { background-color: #f8f9fa; }
+        tr.child-row { color: #5f6368; }
+        tr.child-row:hover { background-color: #f8f9fa; }
+        tr.total-row { font-weight: bold; background-color: #f8f9fa; border-top: 2px solid #dadce0; }
         
-        .empty-row { text-align: center !important; padding: 20px !important; color: #666; font-size: 16px; }
-        .ad-image { width: 60px; height: auto; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
-        .region-placeholder { width: 60px; height: 60px; background-color: #eceff1; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #546e7a; font-weight: bold; border: 1px solid #cfd8dc; }
+        .toggle-btn { background-color: #f1f3f4; color: #1a73e8; padding: 4px 10px; border-radius: 12px; cursor: pointer; display: inline-block; font-size: 12px; border: 1px solid #dadce0; transition: 0.2s; }
+        .toggle-btn:hover { background-color: #e8f0fe; }
+        .child-indent { display: inline-block; width: 15px; color: #bdc1c6; text-align: right; margin-right: 5px; }
+        
+        .empty-row { text-align: center !important; padding: 30px !important; color: #5f6368; font-size: 14px; }
+        .ad-image { width: 50px; height: auto; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.15); }
+        .region-icon { font-size: 20px; text-align: center; display: block; color: #1a73e8; }
     </style>
 </head>
 <body>
@@ -74,46 +88,60 @@
         <input type="date" id="start-date">
         <label>結束日期:</label>
         <input type="date" id="end-date">
-        <button class="btn-fetch" onclick="fetchApiData()">🚀 抓取最新數據</button>
+        <button class="btn-fetch" onclick="fetchApiData()">🚀 抓取數據</button>
     </div>
 
-    <p class="loading" id="loading-text">⏳ 資料與素材圖片正在極速載入中，請稍候...</p>
+    <p class="loading" id="loading-text">⏳ 正在載入最新數據與趨勢圖表，請稍候...</p>
     <div id="errorContainer"></div>
 
     <div id="actionContainer" style="display: none;">
+        
+        <!-- 🌟 總計 KPI 卡片區塊 -->
+        <div class="kpi-container" id="kpi-board">
+            <!-- 動態生成卡片 -->
+        </div>
+
+        <!-- 🌟 每日成效趨勢表 -->
+        <div class="section-title">📅 每日成效趨勢</div>
+        <div class="table-wrapper" id="daily-table-container">
+            <!-- 動態生成每日表格 -->
+        </div>
+
+        <!-- 🌟 廣告/區域詳細資料 -->
+        <div class="section-title">📁 廣告成效詳細列表</div>
         <div class="tabs">
-            <button class="tab-btn" id="tab-purchase" onclick="switchTab('purchase')">🛒 轉換(購買)廣告</button>
-            <button class="tab-btn" id="tab-lead" onclick="switchTab('lead')">📝 表單(名單)廣告</button>
-            <button class="tab-btn" id="tab-message" onclick="switchTab('message')">💬 訊息型廣告</button>
-            <button class="tab-btn" id="tab-region" onclick="switchTab('region')">📍 區域(縣市)分析</button>
+            <button class="tab-btn" id="tab-purchase" onclick="switchTab('purchase')">🛒 轉換(購買)成效</button>
+            <button class="tab-btn" id="tab-region" onclick="switchTab('region')">📍 區域成效分析</button>
         </div>
 
         <div class="controls-row">
             <div class="controls-left">
-                <input type="text" id="searchInput" class="search-input" placeholder="🔍 搜尋..." oninput="renderTable()">
-                <button class="btn-action btn-toggle-all" id="btnToggleAll" onclick="toggleAll()">🔽 全部展開</button>
+                <input type="text" id="searchInput" class="search-input" placeholder="🔍 搜尋名稱..." oninput="renderTable()">
+                <button class="btn-action" id="btnToggleAll" onclick="toggleAll()">🔽 展開/收合所有</button>
             </div>
-            <button class="btn-action btn-export" onclick="exportToExcel()">⬇️ 下載此版面 Excel</button>
+            <button class="btn-action btn-export" onclick="exportToExcel()">⬇️ 匯出 Excel</button>
+        </div>
+
+        <div class="table-wrapper" id="tableContainer">
+            <!-- 動態生成表格 -->
         </div>
     </div>
 
-    <div id="tableContainer">
-        <div style="text-align: center; padding: 50px; color: #666; font-size: 18px; background: white; border-radius: 10px; margin-top: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
-            👆 請先在上方選擇「廣告帳號」與「日期區間」<br><br>
-            選好後點擊綠色的 <b>「🚀 抓取最新數據」</b> 按鈕開始分析！<br>
-        </div>
+    <div id="welcomeContainer" style="text-align: center; padding: 60px; color: #5f6368; font-size: 16px; background: white; border-radius: 8px; margin-top: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid #e0e0e0;">
+        👆 請選擇「廣告帳號」與「日期區間」後，點擊 <b>「🚀 抓取數據」</b> 按鈕開始分析！<br>
     </div>
 </div>
 
 <script>
-    const SECRET_PASSWORD = "12345"; 
+    const SECRET_PASSWORD = "12345";
     let userInput = prompt("🔒 此為公司內部商業數據，請輸入觀看密碼：");
     if (userInput !== SECRET_PASSWORD) {
         alert("密碼錯誤！您沒有權限觀看此頁面。");
-        window.location.href = "https://www.google.com"; 
+        window.location.href = "https://www.google.com";
     }
 
-    let globalCategorizedData = { purchase: [], lead: [], message: [], region: [] };
+    let globalCategorizedData = { purchase: [], region: [] };
+    let globalDailyData = [];
     let currentData = [];
     let currentSortCol = 'spend'; 
     let isAscending = false;
@@ -136,10 +164,10 @@
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
         document.getElementById('tab-' + mode).classList.add('active');
         currentMode = mode;
-        
         currentData = globalCategorizedData[currentMode] || [];
         currentSortCol = 'spend'; 
         isAscending = false;
+        isAllExpanded = false;
         
         if (currentData.length > 0) {
             sortTable('spend'); 
@@ -153,7 +181,7 @@
         const endDate = document.getElementById('end-date').value;
         const accountId = document.getElementById('ad-account-select').value;
         
-        document.getElementById('tableContainer').innerHTML = '';
+        document.getElementById('welcomeContainer').style.display = 'none';
         document.getElementById('actionContainer').style.display = 'none';
         document.getElementById('errorContainer').innerHTML = '';
         document.getElementById('loading-text').style.display = 'block';
@@ -165,9 +193,8 @@
             .then(result => {
                 document.getElementById('loading-text').style.display = 'none';
                 if (result.status === 'success') {
-                    // 🌟 同時接收 data 與 region_data 進行處理
-                    if (result.data.length > 0 || (result.region_data && result.region_data.length > 0)) {
-                        processApiData(result.data, result.region_data || []);
+                    if (result.data.length > 0 || result.daily_data.length > 0) {
+                        processApiData(result.data, result.region_data || [], result.daily_data || []);
                     } else {
                         document.getElementById('errorContainer').innerHTML = '<p class="error-msg">這個日期區間與帳號沒有廣告數據喔！</p>';
                     }
@@ -181,74 +208,83 @@
             });
     }
 
-    function determineTab(row) {
-        let obj = (row.objective || '').toUpperCase();
-        let opt = (row.optimizationGoal || '').toUpperCase();
-
-        if (opt.includes('CONVERSATION') || opt.includes('MESSAGE') || opt.includes('REPLY') || obj.includes('MESSAGE')) {
-            return 'message';
+    function createEmptyNode(mainName, image, subName = null) {
+        let node = {
+            adName: mainName, image: image,
+            spend: 0, reach: 0, impressions: 0, allClicks: 0, 
+            purchases: 0, convValue: 0, carts: 0
+        };
+        if (subName === null) {
+            node.isExpanded = false;
+            node.childrenMap = {};
+        } else {
+            node.audience = subName;
         }
-        if (obj.includes('LEAD') || opt.includes('LEAD')) {
-            return 'lead';
-        }
-        return 'purchase';
+        return node;
     }
 
-    function processApiData(data, regionData) {
-        let parentSummaries = { purchase: {}, lead: {}, message: {}, region: {} };
+    function addMetrics(node, row) {
+        node.spend += (row.spend || 0); 
+        node.impressions += (row.impressions || 0); 
+        node.reach += (row.reach || 0); 
+        node.allClicks += (row.allClicks || 0);
+        node.purchases += (row.purchases || 0); 
+        node.convValue += (row.convValue || 0); 
+        node.carts += (row.carts || 0);
+    }
 
-        // 🌟 獨立出一個可帶入 row 資料的分類函數
-        function addDataToCategory(category, parentName, childName, rowData) {
-            let img = rowData.image || 'https://via.placeholder.com/60?text=無圖';
+    function processApiData(standardData, regionData, dailyData) {
+        // 🌟 1. 處理每日與總成效 KPI
+        globalDailyData = dailyData.sort((a, b) => a.date.localeCompare(b.date));
+        renderKPIAndDaily(globalDailyData);
 
-            if (!parentSummaries[category][parentName]) {
-                parentSummaries[category][parentName] = { 
-                    adName: parentName, isExpanded: false, image: img, childrenMap: {},
-                    spend: 0, reach: 0, impressions: 0, allClicks: 0, 
-                    purchases: 0, convValue: 0, carts: 0,
-                    leads: 0, messages: 0
-                };
-            }
-            let p = parentSummaries[category][parentName];
-            if (p.image.includes('placeholder') && !img.includes('placeholder')) p.image = img;
+        let parentSummaries = { purchase: {}, region: {} };
 
-            if (!p.childrenMap[childName]) {
-                p.childrenMap[childName] = {
-                    adName: parentName, audience: childName, image: img, 
-                    spend: 0, reach: 0, impressions: 0, allClicks: 0, 
-                    purchases: 0, convValue: 0, carts: 0,
-                    leads: 0, messages: 0
-                };
-            }
-            let c = p.childrenMap[childName];
-
-            p.spend += rowData.spend; p.impressions += rowData.impressions; p.reach += rowData.reach; p.allClicks += rowData.allClicks;
-            p.purchases += rowData.purchases; p.convValue += rowData.convValue; p.carts += rowData.carts;
-            p.leads += rowData.leads; p.messages += rowData.messages;
-            
-            c.spend += rowData.spend; c.impressions += rowData.impressions; c.reach += rowData.reach; c.allClicks += rowData.allClicks;
-            c.purchases += rowData.purchases; c.convValue += rowData.convValue; c.carts += rowData.carts;
-            c.leads += rowData.leads; c.messages += rowData.messages;
-        }
-
-        // 🌟 1. 處理標準資料 (給購買、名單、訊息分頁，此時資料包含最完整的 Pixel 數據)
-        data.forEach(row => {
-            let adName = String(row.adName).replace(/複製|複本| |-|─/g, '');
-            if (!adName) return;
-            let cat = determineTab(row);
+        // 🌟 2. 處理標準資料 (轉換分頁)
+        standardData.forEach(row => {
+            let rawAdName = String(row.adName || '').replace(/複製|複本| |-|─/g, '');
+            if (!rawAdName) return;
             let audienceType = row.adsetName || '未標示受眾';
-            addDataToCategory(cat, adName, audienceType, row);
+            let img = row.image || 'https://via.placeholder.com/60?text=無圖';
+
+            if (!parentSummaries.purchase[rawAdName]) {
+                parentSummaries.purchase[rawAdName] = createEmptyNode(rawAdName, img);
+            }
+            let pPur = parentSummaries.purchase[rawAdName];
+            if (pPur.image.includes('placeholder') && !img.includes('placeholder')) pPur.image = img;
+
+            if (!pPur.childrenMap[audienceType]) {
+                pPur.childrenMap[audienceType] = createEmptyNode(rawAdName, img, audienceType);
+            }
+            let cPur = pPur.childrenMap[audienceType];
+            
+            addMetrics(pPur, row);
+            addMetrics(cPur, row);
         });
 
-        // 🌟 2. 處理區域資料 (專門餵給區域分頁，這裡不會干擾到前面的購買數據)
+        // 🌟 3. 處理區域資料 (區域分頁)
         regionData.forEach(row => {
-            let adName = String(row.adName).replace(/複製|複本| |-|─/g, '');
-            if (!adName) return;
-            let regionName = row.region || '未知區域'; 
-            addDataToCategory('region', regionName, adName, row);
+            let rawAdName = String(row.adName || '').replace(/複製|複本| |-|─/g, '');
+            if (!rawAdName) return;
+            let regionName = row.region || row.region_name || row.regionName || row.city || '未知區域'; 
+            let img = row.image || 'https://via.placeholder.com/60?text=無圖';
+
+            if (!parentSummaries.region[regionName]) {
+                parentSummaries.region[regionName] = createEmptyNode(regionName, img);
+            }
+            let pReg = parentSummaries.region[regionName];
+            
+            if (!pReg.childrenMap[rawAdName]) {
+                pReg.childrenMap[rawAdName] = createEmptyNode(regionName, img, rawAdName);
+            }
+            let cReg = pReg.childrenMap[rawAdName];
+            if (cReg.image.includes('placeholder') && !img.includes('placeholder')) cReg.image = img;
+            
+            addMetrics(pReg, row);
+            addMetrics(cReg, row);
         });
 
-        ['purchase', 'lead', 'message', 'region'].forEach(cat => {
+        ['purchase', 'region'].forEach(cat => {
             globalCategorizedData[cat] = Object.values(parentSummaries[cat]).map(p => {
                 calcMetrics(p); 
                 p.children = Object.values(p.childrenMap); 
@@ -274,19 +310,92 @@
         d.cpc = d.allClicks > 0 ? (d.spend / d.allClicks) : 0;
         d.ctr = d.impressions > 0 ? (d.allClicks / d.impressions) : 0;
         d.freq = d.reach > 0 ? (d.impressions / d.reach) : 0;
-
         d.cpaPur = d.purchases > 0 ? (d.spend / d.purchases) : 0;
         d.roas = d.spend > 0 ? (d.convValue / d.spend) : 0;
         d.costPerCart = d.carts > 0 ? (d.spend / d.carts) : 0;
+    }
 
-        d.cpl = d.leads > 0 ? (d.spend / d.leads) : 0;
-        d.cpaMsg = d.messages > 0 ? (d.spend / d.messages) : 0;
+    // 🌟 渲染上方 KPI 與每日趨勢表格
+    function renderKPIAndDaily(dailyData) {
+        let tImp = 0, tClick = 0, tPur = 0, tSpend = 0;
+        
+        let dailyRowsHtml = '';
+        dailyData.forEach(d => {
+            tImp += d.impressions;
+            tClick += d.clicks;
+            tPur += d.purchases;
+            tSpend += d.spend;
+            
+            let ctr = d.impressions > 0 ? (d.clicks / d.impressions * 100).toFixed(2) + '%' : '0.00%';
+            let cpc = d.clicks > 0 ? (d.spend / d.clicks).toFixed(2) : '0.00';
+            let cpa = d.purchases > 0 ? Math.round(d.spend / d.purchases) : '0';
+            
+            // 格式化日期： 2026-06-12 -> 2026年6月12日
+            let dateObj = new Date(d.date);
+            let dateStr = `${dateObj.getFullYear()}年${dateObj.getMonth()+1}月${dateObj.getDate()}日`;
+
+            dailyRowsHtml += `<tr>
+                <td>${dateStr}</td>
+                <td>${d.impressions.toLocaleString()}</td>
+                <td>${d.clicks.toLocaleString()}</td>
+                <td>${ctr}</td>
+                <td>${d.purchases}</td>
+                <td>${Math.round(d.spend).toLocaleString()}</td>
+                <td>${cpc}</td>
+                <td>${cpa}</td>
+            </tr>`;
+        });
+
+        // 計算總計的衍生指標
+        let tCtr = tImp > 0 ? (tClick / tImp * 100).toFixed(2) + '%' : '0.00%';
+        let tCpc = tClick > 0 ? (tSpend / tClick).toFixed(2) : '0.00';
+        let tCpa = tPur > 0 ? Math.round(tSpend / tPur) : '0';
+
+        // 生成 KPI 卡片
+        document.getElementById('kpi-board').innerHTML = `
+            <div class="kpi-card"><div class="kpi-title">Impression</div><div class="kpi-value">${tImp.toLocaleString()}</div></div>
+            <div class="kpi-card"><div class="kpi-title">Clicks</div><div class="kpi-value">${tClick.toLocaleString()}</div></div>
+            <div class="kpi-card"><div class="kpi-title">CTR</div><div class="kpi-value">${tCtr}</div></div>
+            <div class="kpi-card"><div class="kpi-title">Conversions</div><div class="kpi-value">${tPur.toLocaleString()}</div></div>
+            <div class="kpi-card"><div class="kpi-title">Spend</div><div class="kpi-value">${Math.round(tSpend).toLocaleString()}</div></div>
+            <div class="kpi-card"><div class="kpi-title">CPC</div><div class="kpi-value">${tCpc}</div></div>
+            <div class="kpi-card"><div class="kpi-title">CPA</div><div class="kpi-value">${tCpa.toLocaleString()}</div></div>
+        `;
+
+        // 組合每日表格
+        let dailyTable = `<table>
+            <thead>
+                <tr>
+                    <th>日期 ▴</th>
+                    <th>Impression</th>
+                    <th>Clicks</th>
+                    <th>CTR</th>
+                    <th>Conversions</th>
+                    <th>Spend</th>
+                    <th>CPC</th>
+                    <th>CPA</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${dailyRowsHtml}
+                <tr class="total-row">
+                    <td>總計</td>
+                    <td>${tImp.toLocaleString()}</td>
+                    <td>${tClick.toLocaleString()}</td>
+                    <td>${tCtr}</td>
+                    <td>${tPur.toLocaleString()}</td>
+                    <td>${Math.round(tSpend).toLocaleString()}</td>
+                    <td>${tCpc}</td>
+                    <td>${tCpa.toLocaleString()}</td>
+                </tr>
+            </tbody>
+        </table>`;
+        
+        document.getElementById('daily-table-container').innerHTML = dailyTable;
     }
 
     function toggleAll() {
         isAllExpanded = !isAllExpanded;
-        document.getElementById('btnToggleAll').innerText = isAllExpanded ? "🔼 全部收合" : "🔽 全部展開";
-        
         currentData.forEach(d => d.isExpanded = isAllExpanded);
         renderTable();
     }
@@ -320,65 +429,35 @@
         let rowClass = isChild ? "child-row" : "parent-row";
         
         let nameHtml = isChild ? `<span style="color:#aaa; font-size: 12px;">↳ 同上</span>` : `<b>${d.adName}</b>`;
-        
-        let labelName = currentMode === 'region' ? '個廣告' : '個受眾';
-        let audienceHtml = isChild ? `<span class="child-indent">↳</span> ${d.audience}` : `<span class="toggle-btn" onclick="toggleRow('${d.adName}')">${d.isExpanded ? "▼" : "▶"} ${d.children ? d.children.length : 0} ${labelName}</span>`;
+        let toggleLabel = currentMode === 'region' ? "個廣告" : "個受眾";
+        let audienceHtml = isChild ? `<span class="child-indent">↳</span> ${d.audience}` : `<span class="toggle-btn" onclick="toggleRow('${d.adName}')">${d.isExpanded ? "▼" : "▶"} ${d.children ? d.children.length : 0} ${toggleLabel}</span>`;
         
         let imgHtml = '';
-        if (currentMode === 'region') {
-            imgHtml = isChild 
-                ? `<img src="${d.image}" class="ad-image" onerror="this.src='https://via.placeholder.com/60?text=無圖'">` 
-                : `<div class="region-placeholder">📍區域</div>`;
+        if (currentMode === 'region' && !isChild) {
+            imgHtml = `<span class="region-icon">📍</span>`;
         } else {
-            imgHtml = !isChild 
-                ? `<img src="${d.image}" class="ad-image" onerror="this.src='https://via.placeholder.com/60?text=無圖'">` 
-                : ``;
+            imgHtml = `<img src="${d.image}" class="ad-image" onerror="this.src='https://via.placeholder.com/60?text=無圖'">`;
         }
 
-        let html = `<tr class="${rowClass}"><td>${imgHtml}</td><td>${nameHtml}</td><td>${audienceHtml}</td><td>$${Math.round(d.spend).toLocaleString()}</td>`;
-
-        if (currentMode === 'message' || currentMode === 'region') {
-            html += `
-                <td>${d.messages}</td>
-                <td style="color:${d.cpaMsg > 500 ? 'red' : 'inherit'}">$${Math.round(d.cpaMsg).toLocaleString()}</td>
-                <td>${d.reach.toLocaleString()}</td>
-                <td>${d.impressions.toLocaleString()}</td>
-                <td>${d.allClicks.toLocaleString()}</td>
-                <td>$${d.cpc.toFixed(2)}</td>
-                <td>${(d.ctr * 100).toFixed(2)}%</td>
-                <td>${d.freq.toFixed(2)}</td>
-            `;
-        } 
-        else if (currentMode === 'lead') {
-            html += `
-                <td>${d.leads}</td>
-                <td style="color:${d.cpl > 1000 ? 'red' : 'inherit'}">$${Math.round(d.cpl).toLocaleString()}</td>
-                <td>${d.reach.toLocaleString()}</td>
-                <td>${d.impressions.toLocaleString()}</td>
-                <td>${d.allClicks.toLocaleString()}</td>
-                <td>$${d.cpc.toFixed(2)}</td>
-                <td>${(d.ctr * 100).toFixed(2)}%</td>
-                <td>${d.freq.toFixed(2)}</td>
-            `;
-        } 
-        else if (currentMode === 'purchase') {
-            html += `
-                <td>${d.purchases}</td>
-                <td style="color:${d.cpaPur > 1000 ? 'red' : 'inherit'}">$${Math.round(d.cpaPur).toLocaleString()}</td>
-                <td>$${Math.round(d.convValue).toLocaleString()}</td>
-                <td style="font-weight:bold; color:${d.roas > 2 ? 'green' : 'inherit'}">${d.roas.toFixed(2)}</td>
-                <td>${d.reach.toLocaleString()}</td>
-                <td>${d.impressions.toLocaleString()}</td>
-                <td>${d.allClicks.toLocaleString()}</td>
-                <td>$${d.cpc.toFixed(2)}</td>
-                <td>${(d.ctr * 100).toFixed(2)}%</td>
-                <td>${d.carts}</td>
-                <td>$${Math.round(d.costPerCart).toLocaleString()}</td>
-                <td>${d.freq.toFixed(2)}</td>
-            `;
-        }
+        let html = `<tr class="${rowClass}">
+            <td>${imgHtml}</td>
+            <td>${nameHtml}</td>
+            <td>${audienceHtml}</td>
+            <td>$${Math.round(d.spend).toLocaleString()}</td>
+            <td>${d.purchases}</td>
+            <td style="color:${d.cpaPur > 1000 ? '#d93025' : 'inherit'}">$${Math.round(d.cpaPur).toLocaleString()}</td>
+            <td>$${Math.round(d.convValue).toLocaleString()}</td>
+            <td style="font-weight:bold; color:${d.roas > 2 ? '#188038' : 'inherit'}">${d.roas.toFixed(2)}</td>
+            <td>${d.reach.toLocaleString()}</td>
+            <td>${d.impressions.toLocaleString()}</td>
+            <td>${d.allClicks.toLocaleString()}</td>
+            <td>$${d.cpc.toFixed(2)}</td>
+            <td>${(d.ctr * 100).toFixed(2)}%</td>
+            <td>${d.carts}</td>
+            <td>$${Math.round(d.costPerCart).toLocaleString()}</td>
+            <td>${d.freq.toFixed(2)}</td>
+        </tr>`;
         
-        html += `</tr>`;
         return html;
     }
 
@@ -391,61 +470,31 @@
 
         let html = `<table><thead><tr>`;
         
-        let col1Label = currentMode === 'region' ? '區域 (縣市)' : '廣告名稱';
-        let col2Label = currentMode === 'region' ? '廣告內容' : '廣告組合 (受眾)';
-        
+        let firstColLabel = currentMode === 'region' ? '圖標' : '素材圖';
+        let mainColLabel = currentMode === 'region' ? '縣市區域' : '廣告名稱';
+        let subColLabel = currentMode === 'region' ? '涵蓋廣告' : '廣告組合 (受眾)';
+
         html += `
-            <th>圖示/素材圖</th>
-            ${getHeaderHtml('adName', col1Label)}
-            ${getHeaderHtml('audience', col2Label)}
+            <th>${firstColLabel}</th>
+            ${getHeaderHtml('adName', mainColLabel)}
+            ${getHeaderHtml('audience', subColLabel)}
             ${getHeaderHtml('spend', '總花費')}
-        `;
-
-        if (currentMode === 'message' || currentMode === 'region') {
-            html += `
-                ${getHeaderHtml('messages', '訊息數')}
-                ${getHeaderHtml('cpaMsg', 'CPA')}
-                ${getHeaderHtml('reach', '觸及人數')}
-                ${getHeaderHtml('impressions', '曝光次數')}
-                ${getHeaderHtml('allClicks', '點擊次數')}
-                ${getHeaderHtml('cpc', 'CPC')}
-                ${getHeaderHtml('ctr', 'CTR')}
-                ${getHeaderHtml('freq', '頻率')}
-            `;
-        } 
-        else if (currentMode === 'lead') {
-            html += `
-                ${getHeaderHtml('leads', '名單數')}
-                ${getHeaderHtml('cpl', 'CPL')}
-                ${getHeaderHtml('reach', '觸及人數')}
-                ${getHeaderHtml('impressions', '曝光次數')}
-                ${getHeaderHtml('allClicks', '點擊次數')}
-                ${getHeaderHtml('cpc', 'CPC')}
-                ${getHeaderHtml('ctr', 'CTR')}
-                ${getHeaderHtml('freq', '頻率')}
-            `;
-        } 
-        else if (currentMode === 'purchase') {
-            html += `
-                ${getHeaderHtml('purchases', '購買次數')}
-                ${getHeaderHtml('cpaPur', 'CPA')}
-                ${getHeaderHtml('convValue', '轉化價值')}
-                ${getHeaderHtml('roas', 'ROAS')}
-                ${getHeaderHtml('reach', '觸及人數')}
-                ${getHeaderHtml('impressions', '曝光次數')}
-                ${getHeaderHtml('allClicks', '點擊次數')}
-                ${getHeaderHtml('cpc', 'CPC')}
-                ${getHeaderHtml('ctr', 'CTR')}
-                ${getHeaderHtml('carts', '加到購物車次數')}
-                ${getHeaderHtml('costPerCart', '購物車成本')}
-                ${getHeaderHtml('freq', '頻率')}
-            `;
-        }
-
-        html += `</tr></thead><tbody>`;
+            ${getHeaderHtml('purchases', '購買次數')}
+            ${getHeaderHtml('cpaPur', 'CPA')}
+            ${getHeaderHtml('convValue', '轉化價值')}
+            ${getHeaderHtml('roas', 'ROAS')}
+            ${getHeaderHtml('reach', '觸及人數')}
+            ${getHeaderHtml('impressions', '曝光次數')}
+            ${getHeaderHtml('allClicks', '點擊次數')}
+            ${getHeaderHtml('cpc', 'CPC')}
+            ${getHeaderHtml('ctr', 'CTR')}
+            ${getHeaderHtml('carts', '加到購物車次數')}
+            ${getHeaderHtml('costPerCart', '購物車成本')}
+            ${getHeaderHtml('freq', '頻率')}
+        </tr></thead><tbody>`;
 
         if (filteredData.length === 0) {
-            html += `<tr><td colspan="15" class="empty-row">（此頁籤目前沒有資料）找不到相關數據喔！</td></tr>`;
+            html += `<tr><td colspan="16" class="empty-row">（此頁籤目前沒有資料）找不到相關數據喔！</td></tr>`;
         } else {
             filteredData.forEach(parent => {
                 html += createRowHtml(parent, false);
@@ -457,8 +506,6 @@
 
         html += `</tbody></table>`;
         document.getElementById('tableContainer').innerHTML = html;
-        
-        document.getElementById('btnToggleAll').innerText = isAllExpanded ? "🔼 全部收合" : "🔽 全部展開";
     }
 
     function exportToExcel() {
@@ -474,33 +521,31 @@
         }
 
         const ws_data = [];
-        let headers = [
-            currentMode === 'region' ? "區域 (縣市)" : "廣告名稱", 
-            currentMode === 'region' ? "廣告內容" : "廣告組合", 
-            "總花費"
-        ];
-        
-        if (currentMode === 'message' || currentMode === 'region') {
-            headers = headers.concat(["訊息數", "CPA", "觸及人數", "曝光次數", "點擊次數", "CPC", "CTR", "頻率"]);
-        } else if (currentMode === 'lead') {
-            headers = headers.concat(["名單數", "CPL", "觸及人數", "曝光次數", "點擊次數", "CPC", "CTR", "頻率"]);
-        } else if (currentMode === 'purchase') {
-            headers = headers.concat(["購買次數", "CPA", "轉化價值", "ROAS", "觸及人數", "曝光次數", "點擊次數", "CPC", "CTR", "加到購物車次數", "購物車成本", "頻率"]);
-        }
-        
+        let mainColLabel = currentMode === 'region' ? '縣市區域' : '廣告名稱';
+        let subColLabel = currentMode === 'region' ? '廣告名稱' : '廣告組合';
+
+        let headers = [mainColLabel, subColLabel, "總花費", "購買次數", "CPA", "轉化價值", "ROAS", "觸及人數", "曝光次數", "點擊次數", "CPC", "CTR", "加到購物車次數", "購物車成本", "頻率"];
         ws_data.push(headers);
 
         function addRowToExcel(d, isChild) {
             let audName = isChild ? d.audience : "總計";
-            let rowData = [isChild ? "  " + d.adName : d.adName, audName, Math.round(d.spend)];
-            
-            if (currentMode === 'message' || currentMode === 'region') {
-                rowData = rowData.concat([d.messages, Math.round(d.cpaMsg), d.reach, d.impressions, d.allClicks, d.cpc, d.ctr, d.freq]);
-            } else if (currentMode === 'lead') {
-                rowData = rowData.concat([d.leads, Math.round(d.cpl), d.reach, d.impressions, d.allClicks, d.cpc, d.ctr, d.freq]);
-            } else if (currentMode === 'purchase') {
-                rowData = rowData.concat([d.purchases, Math.round(d.cpaPur), Math.round(d.convValue), d.roas, d.reach, d.impressions, d.allClicks, d.cpc, d.ctr, d.carts, Math.round(d.costPerCart), d.freq]);
-            }
+            let rowData = [
+                isChild ? "  " + d.adName : d.adName, 
+                audName, 
+                Math.round(d.spend),
+                d.purchases, 
+                Math.round(d.cpaPur), 
+                Math.round(d.convValue), 
+                d.roas, 
+                d.reach, 
+                d.impressions, 
+                d.allClicks, 
+                d.cpc, 
+                d.ctr, 
+                d.carts, 
+                Math.round(d.costPerCart), 
+                d.freq
+            ];
             ws_data.push(rowData);
         }
 
@@ -518,24 +563,15 @@
                 const cellRef = XLSX.utils.encode_cell({c:C, r:R});
                 if(!ws[cellRef]) continue;
                 
-                if (currentMode === 'message' || currentMode === 'lead' || currentMode === 'region') {
-                    if (C === 9) ws[cellRef].z = '0.00%';  
-                    else if (C === 8 || C === 10) ws[cellRef].z = '0.00'; 
-                } else if (currentMode === 'purchase') {
-                    if (C === 11) ws[cellRef].z = '0.00%'; 
-                    else if (C === 6 || C === 10 || C === 14) ws[cellRef].z = '0.00'; 
-                }
+                if (C === 11) ws[cellRef].z = '0.00%'; 
+                else if (C === 6 || C === 10 || C === 14) ws[cellRef].z = '0.00'; 
             }
         }
 
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "廣告成效報表");
         
-        let fileName = "Meta_轉換廣告報表.xlsx";
-        if (currentMode === 'message') fileName = "Meta_訊息廣告報表.xlsx";
-        else if (currentMode === 'lead') fileName = "Meta_表單廣告報表.xlsx";
-        else if (currentMode === 'region') fileName = "Meta_區域分析報表.xlsx";
-        
+        let fileName = currentMode === 'region' ? "Meta_區域廣告報表.xlsx" : "Meta_轉換廣告報表.xlsx";
         XLSX.writeFile(wb, fileName);
     }
 </script>
